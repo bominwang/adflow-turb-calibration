@@ -800,7 +800,7 @@ contains
                         ! eddy-viscosity computation.
 
                         t1 = two * sqrt(w(i, j, k, itu1)) &
-                             / (0.09_realType * w(i, j, k, itu2) * d2Wall(i, j, k))
+                             / (rSSTBetas * w(i, j, k, itu2) * d2Wall(i, j, k))
                         t2 = 500.0_realType * rlv(i, j, k) &
                              / (w(i, j, k, irho) * w(i, j, k, itu2) * d2Wall(i, j, k)**2)
 

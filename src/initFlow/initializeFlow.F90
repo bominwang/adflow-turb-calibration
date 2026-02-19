@@ -46,10 +46,11 @@ contains
         real(kind=realType) :: nuInf, ktmp, uInf2
         real(kind=realType) :: vinf, zinf, tmp1(1), tmp2(1)
 
-        ! Initialize turbulence model closure coefficients to default values.
-        ! Must be called before any turbulence constants are used.
-        call setSADefaults()
-        call setSSTDefaults()
+        ! Turbulence closure coefficients are initialised by their module-level
+        ! default values in paramTurb.F90.  Do NOT call setSADefaults /
+        ! setSSTDefaults here, because referenceState is invoked every time
+        ! the AeroProblem changes, which would overwrite any user-supplied
+        ! custom coefficients set via setSAConstants / setSSTConstants.
 
         ! Compute the dimensional viscosity from Sutherland's law
         muInfDim = muSuthDim &

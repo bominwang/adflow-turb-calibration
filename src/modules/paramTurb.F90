@@ -17,40 +17,42 @@ module paramTurb
 ! ======================================================================
 !
 !       9 calibration parameters (matching literature):
-    real(kind=realType) :: rsaK       ! kappa (von Karman constant, default 0.41)
-    real(kind=realType) :: rsaCb1     ! production coeff (default 0.1355)
-    real(kind=realType) :: rsaCb2     ! diffusion coeff (default 0.622)
-    real(kind=realType) :: rsaCb3     ! *** stores SIGMA (= 2/3), NOT c_b3 ***
-    real(kind=realType) :: rsaCv1     ! wall damping coeff (default 7.1)
-    real(kind=realType) :: rsaCw2     ! destruction coeff (default 0.3)
-    real(kind=realType) :: rsaCw3     ! destruction coeff (default 2.0)
-    real(kind=realType) :: rsaCt3     ! transition coeff (default 1.2)
-    real(kind=realType) :: rsaCt4     ! transition coeff (default 0.5)
+!       Initialised here so defaults survive repeated referenceState calls.
+    real(kind=realType) :: rsaK   = 0.41_realType      ! kappa
+    real(kind=realType) :: rsaCb1 = 0.1355_realType    ! production coeff
+    real(kind=realType) :: rsaCb2 = 0.622_realType     ! diffusion coeff
+    real(kind=realType) :: rsaCb3 = 0.66666666667_realType ! sigma (2/3)
+    real(kind=realType) :: rsaCv1 = 7.1_realType       ! wall damping coeff
+    real(kind=realType) :: rsaCw2 = 0.3_realType       ! destruction coeff
+    real(kind=realType) :: rsaCw3 = 2.0_realType       ! destruction coeff
+    real(kind=realType) :: rsaCt3 = 1.2_realType       ! transition coeff
+    real(kind=realType) :: rsaCt4 = 0.5_realType       ! transition coeff
 !
 !       Derived constant (auto-recomputed by setter):
-    real(kind=realType) :: rsaCw1     ! = rsaCb1/(rsaK^2) + (1+rsaCb2)/rsaCb3
+    real(kind=realType) :: rsaCw1 = 3.239067055837563_realType
 !
 !       Auxiliary (not in standard calibration set, but modifiable):
-    real(kind=realType) :: rsaCt1     ! transition coeff (default 1.0)
-    real(kind=realType) :: rsaCt2     ! transition coeff (default 2.0)
-    real(kind=realType) :: rsaCrot    ! rotation correction (default 2.0)
+    real(kind=realType) :: rsaCt1  = 1.0_realType      ! transition coeff
+    real(kind=realType) :: rsaCt2  = 2.0_realType      ! transition coeff
+    real(kind=realType) :: rsaCrot = 2.0_realType      ! rotation correction
 !
 ! ======================================================================
 !       K-omega SST constants (MUTABLE).
 !       Default values set by setSSTDefaults().
 ! ======================================================================
 !
-    real(kind=realType) :: rSSTK      ! kappa (default 0.41)
-    real(kind=realType) :: rSSTA1     ! limiter constant a1 (default 0.31)
-    real(kind=realType) :: rSSTBetas  ! beta* (default 0.09)
+!       Initialised here so defaults survive repeated referenceState calls.
+    real(kind=realType) :: rSSTK     = 0.41_realType   ! kappa
+    real(kind=realType) :: rSSTA1    = 0.31_realType   ! limiter constant a1
+    real(kind=realType) :: rSSTBetas = 0.09_realType   ! beta*
 
-    real(kind=realType) :: rSSTSigk1  ! sigma_k1 (default 0.85)
-    real(kind=realType) :: rSSTSigw1  ! sigma_omega1 (default 0.5)
-    real(kind=realType) :: rSSTBeta1  ! beta_1 (default 0.075)
+    real(kind=realType) :: rSSTSigk1 = 0.85_realType   ! sigma_k1
+    real(kind=realType) :: rSSTSigw1 = 0.5_realType    ! sigma_omega1
+    real(kind=realType) :: rSSTBeta1 = 0.075_realType  ! beta_1
 
-    real(kind=realType) :: rSSTSigk2  ! sigma_k2 (default 1.0)
-    real(kind=realType) :: rSSTSigw2  ! sigma_omega2 (default 0.856)
-    real(kind=realType) :: rSSTBeta2  ! beta_2 (default 0.0828)
+    real(kind=realType) :: rSSTSigk2 = 1.0_realType    ! sigma_k2
+    real(kind=realType) :: rSSTSigw2 = 0.856_realType  ! sigma_omega2
+    real(kind=realType) :: rSSTBeta2 = 0.0828_realType ! beta_2
 !
 ! ======================================================================
 !       K-omega constants (unchanged, compile-time parameters).

@@ -1160,6 +1160,7 @@ contains
         use inputTimeSpectral
         use iteration
         use turbMod
+        use paramTurb, only: rSSTBetas
         use utils, only: setPointers
         use turbUtils, only: kwCDTerm
         implicit none
@@ -1197,7 +1198,7 @@ contains
                         do i = 2, il
 
                             t1 = sqrt(w(i, j, k, itu1)) &
-                                 / (0.09_realType * w(i, j, k, itu2) * d2Wall(i, j, k))
+                                 / (rSSTBetas * w(i, j, k, itu2) * d2Wall(i, j, k))
                             t2 = 500.0_realType * rlv(i, j, k) &
                                  / (w(i, j, k, irho) * w(i, j, k, itu2) * d2Wall(i, j, k)**2)
                             t1 = max(t1, t2)

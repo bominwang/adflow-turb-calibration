@@ -3,9 +3,15 @@ Patch ADflow to expose SA and SST closure coefficients as runtime-modifiable var
 =======================================================================================
 
 Changes:
-  1. paramTurb.F90: Remove `parameter` from SA & SST constants, add setter subroutines
-  2. adflow.pyf:    Add paramturb module to f2py interface (SA + SST vars & subroutines)
-  3. initializeFlow.F90: Add calls to setSADefaults() and setSSTDefaults()
+  1. paramTurb.F90:       Remove `parameter` from SA & SST constants, add default
+                          initial values and setter subroutines
+  2. adflow.pyf:          Add paramturb module to f2py interface (SA + SST vars & subs)
+  3. initializeFlow.F90:  NO calls to setSADefaults/setSSTDefaults in referenceState
+                          (defaults come from module-level initialisers; referenceState
+                          is called on every AeroProblem switch and would clobber
+                          user-supplied coefficients)
+  4. SST.F90:             Replace hardcoded 0.09 (beta*) with rSSTBetas in f1 blending
+  5. turbUtils.F90:       Replace hardcoded 0.09 (beta*) with rSSTBetas in f2/eddy-visc
 
 Usage (inside MDO Lab Docker):
     python3 patch_adflow_turb.py
@@ -14,8 +20,9 @@ Usage (inside MDO Lab Docker):
     pip install -e .
 
 Python API after rebuild:
-    # SA coefficients
     pt = solver.adflow.paramturb
+
+    # SA coefficients
     pt.setsadefaults()
     pt.setsaconstants(cb1, cb2, sigma, kappa, cv1, cw2, cw3, ct3, ct4)
 
@@ -25,6 +32,7 @@ Python API after rebuild:
 """
 
 import os
+import re
 import shutil
 
 ADFLOW_SRC = os.environ.get(
@@ -33,13 +41,16 @@ ADFLOW_SRC = os.environ.get(
 PARAMTURB_F90 = os.path.join(ADFLOW_SRC, "modules", "paramTurb.F90")
 ADFLOW_PYF = os.path.join(ADFLOW_SRC, "f2py", "adflow.pyf")
 INIT_FLOW_F90 = os.path.join(ADFLOW_SRC, "initFlow", "initializeFlow.F90")
+SST_F90 = os.path.join(ADFLOW_SRC, "turbulence", "SST.F90")
+TURBUTILS_F90 = os.path.join(ADFLOW_SRC, "turbulence", "turbUtils.F90")
 
 
 # ============================================================
 # 1. Patch paramTurb.F90
 # ============================================================
 def patch_paramturb():
-    """Replace paramTurb.F90: SA & SST constants become mutable, add setter subroutines."""
+    """Replace paramTurb.F90: SA & SST constants become mutable with
+    default initial values, add setter subroutines."""
 
     backup = PARAMTURB_F90 + ".bak"
     if not os.path.exists(backup):
@@ -52,6 +63,8 @@ def patch_paramturb():
 !
 !       PATCHED: SA and SST constants are mutable (no 'parameter') to allow
 !       runtime modification for Bayesian calibration of closure coefficients.
+!       Default values are set via Fortran initialisers so they survive
+!       repeated referenceState calls without being clobbered.
 !       Other turbulence model constants (K-omega, K-tau, V2-f) remain as
 !       compile-time parameters.
 !
@@ -61,44 +74,44 @@ def patch_paramturb():
 !
 ! ======================================================================
 !       Spalart-Allmaras constants (MUTABLE).
-!       Default values set by setSADefaults().
+!       Initialised here so defaults survive repeated referenceState calls.
 ! ======================================================================
 !
 !       9 calibration parameters (matching literature):
-    real(kind=realType) :: rsaK       ! kappa (von Karman constant, default 0.41)
-    real(kind=realType) :: rsaCb1     ! production coeff (default 0.1355)
-    real(kind=realType) :: rsaCb2     ! diffusion coeff (default 0.622)
-    real(kind=realType) :: rsaCb3     ! *** stores SIGMA (= 2/3), NOT c_b3 ***
-    real(kind=realType) :: rsaCv1     ! wall damping coeff (default 7.1)
-    real(kind=realType) :: rsaCw2     ! destruction coeff (default 0.3)
-    real(kind=realType) :: rsaCw3     ! destruction coeff (default 2.0)
-    real(kind=realType) :: rsaCt3     ! transition coeff (default 1.2)
-    real(kind=realType) :: rsaCt4     ! transition coeff (default 0.5)
+    real(kind=realType) :: rsaK   = 0.41_realType      ! kappa
+    real(kind=realType) :: rsaCb1 = 0.1355_realType    ! production coeff
+    real(kind=realType) :: rsaCb2 = 0.622_realType     ! diffusion coeff
+    real(kind=realType) :: rsaCb3 = 0.66666666667_realType ! sigma (2/3)
+    real(kind=realType) :: rsaCv1 = 7.1_realType       ! wall damping coeff
+    real(kind=realType) :: rsaCw2 = 0.3_realType       ! destruction coeff
+    real(kind=realType) :: rsaCw3 = 2.0_realType       ! destruction coeff
+    real(kind=realType) :: rsaCt3 = 1.2_realType       ! transition coeff
+    real(kind=realType) :: rsaCt4 = 0.5_realType       ! transition coeff
 !
 !       Derived constant (auto-recomputed by setter):
-    real(kind=realType) :: rsaCw1     ! = rsaCb1/(rsaK^2) + (1+rsaCb2)/rsaCb3
+    real(kind=realType) :: rsaCw1 = 3.239067055837563_realType
 !
 !       Auxiliary (not in standard calibration set, but modifiable):
-    real(kind=realType) :: rsaCt1     ! transition coeff (default 1.0)
-    real(kind=realType) :: rsaCt2     ! transition coeff (default 2.0)
-    real(kind=realType) :: rsaCrot    ! rotation correction (default 2.0)
+    real(kind=realType) :: rsaCt1  = 1.0_realType      ! transition coeff
+    real(kind=realType) :: rsaCt2  = 2.0_realType      ! transition coeff
+    real(kind=realType) :: rsaCrot = 2.0_realType      ! rotation correction
 !
 ! ======================================================================
 !       K-omega SST constants (MUTABLE).
-!       Default values set by setSSTDefaults().
+!       Initialised here so defaults survive repeated referenceState calls.
 ! ======================================================================
 !
-    real(kind=realType) :: rSSTK      ! kappa (default 0.41)
-    real(kind=realType) :: rSSTA1     ! limiter constant a1 (default 0.31)
-    real(kind=realType) :: rSSTBetas  ! beta* (default 0.09)
+    real(kind=realType) :: rSSTK     = 0.41_realType   ! kappa
+    real(kind=realType) :: rSSTA1    = 0.31_realType   ! limiter constant a1
+    real(kind=realType) :: rSSTBetas = 0.09_realType   ! beta*
 
-    real(kind=realType) :: rSSTSigk1  ! sigma_k1 (default 0.85)
-    real(kind=realType) :: rSSTSigw1  ! sigma_omega1 (default 0.5)
-    real(kind=realType) :: rSSTBeta1  ! beta_1 (default 0.075)
+    real(kind=realType) :: rSSTSigk1 = 0.85_realType   ! sigma_k1
+    real(kind=realType) :: rSSTSigw1 = 0.5_realType    ! sigma_omega1
+    real(kind=realType) :: rSSTBeta1 = 0.075_realType  ! beta_1
 
-    real(kind=realType) :: rSSTSigk2  ! sigma_k2 (default 1.0)
-    real(kind=realType) :: rSSTSigw2  ! sigma_omega2 (default 0.856)
-    real(kind=realType) :: rSSTBeta2  ! beta_2 (default 0.0828)
+    real(kind=realType) :: rSSTSigk2 = 1.0_realType    ! sigma_k2
+    real(kind=realType) :: rSSTSigw2 = 0.856_realType  ! sigma_omega2
+    real(kind=realType) :: rSSTBeta2 = 0.0828_realType ! beta_2
 !
 ! ======================================================================
 !       K-omega constants (unchanged, compile-time parameters).
@@ -174,8 +187,7 @@ contains
 
     subroutine setSADefaults()
         !
-        ! Set all SA closure coefficients to their standard default values.
-        ! Must be called once during solver initialization.
+        ! Reset all SA closure coefficients to their standard default values.
         !
         implicit none
 
@@ -203,17 +215,6 @@ contains
         ! Set the 9 independent SA closure coefficients at runtime.
         ! Automatically recomputes the derived constant c_w1.
         !
-        ! Arguments (matching the standard SA calibration literature):
-        !   cb1   - production coefficient      (default 0.1355)
-        !   cb2   - diffusion coefficient        (default 0.622)
-        !   sigma - diffusion ratio              (default 2/3, stored as rsaCb3)
-        !   kappa - von Karman constant          (default 0.41)
-        !   cv1   - wall damping coefficient     (default 7.1)
-        !   cw2   - destruction coefficient      (default 0.3)
-        !   cw3   - destruction coefficient      (default 2.0)
-        !   ct3   - transition coefficient       (default 1.2)
-        !   ct4   - transition coefficient       (default 0.5)
-        !
         implicit none
         real(kind=realType), intent(in) :: cb1, cb2, sigma, kappa
         real(kind=realType), intent(in) :: cv1, cw2, cw3, ct3, ct4
@@ -240,8 +241,7 @@ contains
 
     subroutine setSSTDefaults()
         !
-        ! Set all SST closure coefficients to their standard default values.
-        ! Must be called once during solver initialization.
+        ! Reset all SST closure coefficients to their standard default values.
         !
         implicit none
 
@@ -264,17 +264,6 @@ contains
         !
         ! Set the 9 SST closure coefficients at runtime.
         ! All 9 coefficients are independent (no derived constants).
-        !
-        ! Arguments:
-        !   sstk  - von Karman constant kappa    (default 0.41)
-        !   a1    - limiter constant              (default 0.31)
-        !   betas - beta*                         (default 0.09)
-        !   sigk1 - sigma_k1                     (default 0.85)
-        !   sigw1 - sigma_omega1                 (default 0.5)
-        !   beta1 - beta_1                       (default 0.075)
-        !   sigk2 - sigma_k2                     (default 1.0)
-        !   sigw2 - sigma_omega2                 (default 0.856)
-        !   beta2 - beta_2                       (default 0.0828)
         !
         implicit none
         real(kind=realType), intent(in) :: sstk, a1, betas
@@ -401,14 +390,16 @@ def patch_pyf():
 
 
 # ============================================================
-# 3. Patch initializeFlow.F90
+# 3. Patch initializeFlow.F90  (do NOT add setter calls)
 # ============================================================
 def patch_initializeflow():
-    """Patch initializeFlow.F90: add calls to setSADefaults() and setSSTDefaults()."""
+    """Ensure initializeFlow.F90 does NOT call setSADefaults/setSSTDefaults
+    inside referenceState.  referenceState is invoked on every AeroProblem
+    switch and would overwrite user-supplied coefficients.  Defaults are
+    provided by module-level initialisers in paramTurb.F90 instead."""
 
     if not os.path.exists(INIT_FLOW_F90):
-        print(f"  WARNING: {INIT_FLOW_F90} not found.")
-        print("  Manually add 'call setSADefaults()' and 'call setSSTDefaults()'.")
+        print(f"  WARNING: {INIT_FLOW_F90} not found, skipping.")
         return
 
     backup = INIT_FLOW_F90 + ".bak"
@@ -419,28 +410,124 @@ def patch_initializeflow():
     with open(INIT_FLOW_F90, "r") as f:
         content = f.read()
 
-    # Check if already patched
-    if "setSADefaults" in content and "setSSTDefaults" in content:
-        print("  initializeFlow.F90 already patched, skipping.")
+    # Remove any existing calls to setSADefaults / setSSTDefaults
+    # that a previous version of the patch may have inserted.
+    if "call setSADefaults" in content or "call setSSTDefaults" in content:
+        # Remove the call lines and any surrounding comment block we added
+        content = content.replace(
+            "        ! Initialize turbulence model closure coefficients to default values.\n"
+            "        ! Must be called before any turbulence constants are used.\n"
+            "        call setSADefaults()\n"
+            "        call setSSTDefaults()\n\n",
+            "        ! Turbulence closure coefficients are initialised by their module-level\n"
+            "        ! default values in paramTurb.F90.  Do NOT call setSADefaults /\n"
+            "        ! setSSTDefaults here, because referenceState is invoked every time\n"
+            "        ! the AeroProblem changes, which would overwrite any user-supplied\n"
+            "        ! custom coefficients set via setSAConstants / setSSTConstants.\n\n"
+        )
+        # Also handle the case where only the calls exist without our comment
+        content = re.sub(
+            r" *call setSADefaults\(\)\n", "", content
+        )
+        content = re.sub(
+            r" *call setSSTDefaults\(\)\n", "", content
+        )
+        print(f"  Patched: {INIT_FLOW_F90} (removed setter calls from referenceState)")
+    else:
+        print(f"  {INIT_FLOW_F90}: no setter calls found, OK.")
+
+
+# ============================================================
+# 4. Patch SST.F90  (replace hardcoded 0.09 with rSSTBetas)
+# ============================================================
+def patch_sst():
+    """In the f1SST subroutine, replace hardcoded 0.09_realType (beta*)
+    with rSSTBetas from paramTurb, and add the necessary use statement."""
+
+    if not os.path.exists(SST_F90):
+        print(f"  WARNING: {SST_F90} not found, skipping.")
         return
 
-    marker = "        ! Compute the dimensional viscosity from Sutherland's law"
-    if marker not in content:
-        print("  WARNING: Could not find insertion marker in initializeFlow.F90")
-        print("  Manually add calls to setSADefaults() and setSSTDefaults().")
+    backup = SST_F90 + ".bak"
+    if not os.path.exists(backup):
+        shutil.copy2(SST_F90, backup)
+        print(f"  Backup: {backup}")
+
+    with open(SST_F90, "r") as f:
+        content = f.read()
+
+    changed = False
+
+    # Add 'use paramTurb, only: rSSTBetas' to the f1SST subroutine
+    # (it already has use constants, blockPointers, etc. but NOT paramTurb)
+    old_imports = (
+        "        use constants\n"
+        "        use blockPointers\n"
+        "        use inputTimeSpectral\n"
+        "        use iteration\n"
+        "        use turbMod\n"
+        "        use utils, only: setPointers\n"
+        "        use turbUtils, only: kwCDTerm"
+    )
+    new_imports = (
+        "        use constants\n"
+        "        use blockPointers\n"
+        "        use inputTimeSpectral\n"
+        "        use iteration\n"
+        "        use turbMod\n"
+        "        use paramTurb, only: rSSTBetas\n"
+        "        use utils, only: setPointers\n"
+        "        use turbUtils, only: kwCDTerm"
+    )
+    if old_imports in content and "use paramTurb, only: rSSTBetas" not in content:
+        content = content.replace(old_imports, new_imports, 1)
+        changed = True
+
+    # Replace the hardcoded 0.09_realType with rSSTBetas in the f1 blending
+    if "0.09_realType * w(i, j, k, itu2) * d2Wall(i, j, k))" in content:
+        content = content.replace(
+            "0.09_realType * w(i, j, k, itu2) * d2Wall(i, j, k))",
+            "rSSTBetas * w(i, j, k, itu2) * d2Wall(i, j, k))"
+        )
+        changed = True
+
+    if changed:
+        with open(SST_F90, "w") as f:
+            f.write(content)
+        print(f"  Patched: {SST_F90}")
+    else:
+        print(f"  {SST_F90}: already patched or pattern not found.")
+
+
+# ============================================================
+# 5. Patch turbUtils.F90  (replace hardcoded 0.09 with rSSTBetas)
+# ============================================================
+def patch_turbutils():
+    """In SSTEddyViscosity, replace hardcoded 0.09_realType (beta*) with
+    rSSTBetas.  paramTurb is already imported in this subroutine."""
+
+    if not os.path.exists(TURBUTILS_F90):
+        print(f"  WARNING: {TURBUTILS_F90} not found, skipping.")
         return
 
-    insert_code = """        ! Initialize turbulence model closure coefficients to default values.
-        ! Must be called before any turbulence constants are used.
-        call setSADefaults()
-        call setSSTDefaults()
+    backup = TURBUTILS_F90 + ".bak"
+    if not os.path.exists(backup):
+        shutil.copy2(TURBUTILS_F90, backup)
+        print(f"  Backup: {backup}")
 
-"""
-    content = content.replace(marker, insert_code + marker)
+    with open(TURBUTILS_F90, "r") as f:
+        content = f.read()
 
-    with open(INIT_FLOW_F90, "w") as f:
-        f.write(content)
-    print(f"  Patched: {INIT_FLOW_F90}")
+    if "0.09_realType * w(i, j, k, itu2) * d2Wall(i, j, k))" in content:
+        content = content.replace(
+            "0.09_realType * w(i, j, k, itu2) * d2Wall(i, j, k))",
+            "rSSTBetas * w(i, j, k, itu2) * d2Wall(i, j, k))"
+        )
+        with open(TURBUTILS_F90, "w") as f:
+            f.write(content)
+        print(f"  Patched: {TURBUTILS_F90}")
+    else:
+        print(f"  {TURBUTILS_F90}: already patched or pattern not found.")
 
 
 # ============================================================
@@ -451,14 +538,20 @@ def main():
     print("Patching ADflow for runtime SA + SST coefficient modification")
     print("=" * 70)
 
-    print("\n[1/3] Patching paramTurb.F90 (SA + SST mutable)...")
+    print("\n[1/5] Patching paramTurb.F90 (SA + SST mutable with initialisers)...")
     patch_paramturb()
 
-    print("\n[2/3] Patching adflow.pyf (f2py interface)...")
+    print("\n[2/5] Patching adflow.pyf (f2py interface)...")
     patch_pyf()
 
-    print("\n[3/3] Patching initializeFlow.F90 (initialization calls)...")
+    print("\n[3/5] Patching initializeFlow.F90 (no setter calls in referenceState)...")
     patch_initializeflow()
+
+    print("\n[4/5] Patching SST.F90 (f1 blending: 0.09 -> rSSTBetas)...")
+    patch_sst()
+
+    print("\n[5/5] Patching turbUtils.F90 (eddy viscosity: 0.09 -> rSSTBetas)...")
+    patch_turbutils()
 
     print("\n" + "=" * 70)
     print("Patch complete!")
