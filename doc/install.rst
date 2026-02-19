@@ -1,0 +1,139 @@
+.. _adflow_install:
+
+Installation
+============
+All the core computations in ADflow are coded in Fortran.
+It is therefore necessary to build this library before using ADflow.
+
+Requirements
+------------
+ADflow requires the following dependencies:
+
+- CGNS Library
+- PETSc
+- MPI
+- Complexify (see the `Complex build`_ section)
+
+See the MDO Lab installation guide `here <https://mdolab-mach-aero.readthedocs-hosted.com/en/latest/installInstructions/install3rdPartyPackages.html>`_ for the supported versions and installation instructions.
+
+Building
+--------
+ADflow follows the standard MDO Lab build procedure.
+To start, find a configuration file close to your current setup in::
+
+    config/defaults
+
+and copy it to ``config/config.mk``. For example:
+
+.. prompt:: bash
+
+    cp config/defaults/config.LINUX_GFORTRAN.mk config/config.mk
+
+If you are a beginner user installing the packages on a linux desktop,
+you should use the ``config.LINUX_GFORTRAN`` versions of the configuration
+files. The ``config.LINUX_INTEL`` versions are usually used on clusters.
+ADflow has been successfully compiled on LINUX with either
+``ifort`` or ``gfortran``.
+
+Once you have copied the config file, compile ADflow by running:
+
+.. prompt:: bash
+
+    make
+
+If everything was successful, the following lines will be printed to
+the screen (near the end)::
+
+   Testing if module adflow can be imported...
+   Module adflow was successfully imported.
+
+If you don't see this, it will be necessary to configure the build manually.
+To configure manually, open ``config/config.mk`` and modify options as necessary.
+Common issues are often that dependency variable paths, such as ``CGNS_INCLUDE_FLAGS`` and ``CGNS_LINKER_FLAGS``, point to an incorrect location and need to be updated.
+After changes to the configuration file, run ``make clean`` before attempting a new build.
+
+.. NOTE::
+
+    Compiling ADflow on HPC clusters requires additional care, as some systems do not have a homogeneous CPU architecture across all nodes.
+    For example, the architecture of the login nodes may differ from the architecture of compute nodes available on the same cluster.
+
+    Compiling the code on/for a specific login node type may result in unexpected crashes if the compute nodes have an incompatible (newer) architecture.
+    You can append the ``-march=<HPC-ARCH>`` flag to the ``config.mk`` file to specify the architecture of the compute node and avoid such issues.
+    To optimize the compiled code for a specific architecture, one can add the ``-mtune=<HPC-ARCH>`` flag. However, this is rarely needed.
+    An example of the updated flags in the config file is::
+
+        FF90_FLAGS = <normal-flags> -march=<HPC-ARCH> -mtune=<HPC-ARCH>
+
+    Note that the ``<HPC-ARCH>`` should be replaced with the name of the correct compute node architecture. This name is compiler-specific and also depends on the compiler version.
+
+    For example, if the login nodes use newer Cascade Lake CPUs while the compute nodes are based on older Sandy Bridge CPUs it may be necessary to set ``-march=sandybridge`` in your ``config.mk`` file::
+
+        FF90_FLAGS = <normal-flags> -march=sandybridge
+
+    We recommend to contact your local HPC team to get more information about hardware specific issues.
+
+Lastly, to build and install the Python interface, type:
+
+.. prompt:: bash
+
+    pip install .
+
+
+Verification
+------------
+ADflow contains a set of simple tests that can be run automatically to ensure ADflow reproduces the expected reference results.
+First, install `IDWarp <https://github.com/mdolab/idwarp/>`__ and `pyGeo <https://github.com/mdolab/pygeo/>`__.
+Next, install the other testing dependencies by going to the root ADflow directory and typing:
+
+.. prompt:: bash
+
+    pip install .[testing]
+
+With all of these packages installed, you can fully verify your ADflow installation.
+First, run the script:
+
+.. prompt:: bash
+
+    input_files/get-input-files.sh
+
+to download and extract the necessary files.
+Then in the root directory run:
+
+.. prompt:: bash
+
+    testflo .
+
+
+Complex Build
+-------------
+Its possible to build a "complexified" version of ADflow directly from the real version.
+To do so, ADflow relies on the `Complexify <https://github.com/mdolab/complexify>`__ module and library, which needs to be compiled and installed first.
+Furthermore, complex ADflow **requires** a complex build of PETSc to build and run.
+The PETSc configuration script must be re-run with the following options:
+
+.. prompt:: bash
+
+    ./configure --with-shared-libraries --download-superlu_dist=yes --download-parmetis=yes --download-metis=yes --with-fortran-interfaces=1 --with-debugging=yes --with-scalar-type=complex --PETSC_ARCH=complex-debug
+
+Follow instructions as before to complete complex build.
+Now, to build complex ADflow do:
+
+.. prompt:: bash
+
+    export PETSC_ARCH=$PETSC_ARCH_COMPLEX
+    make -f Makefile_CS
+
+Note that, ``PETSC_ARCH``, **must** be set and point to the complex PETSc before the code is compiled, and must also be set when running in complex mode.
+In the above example, an intermediate convenience variable, ``PETSC_ARCH_COMPLEX``, defines the complex PETSc arch path.
+Once the library is built run the following to install the python module and library into your environment.
+
+.. prompt:: bash
+
+   pip install .[complex]
+
+To run the complex tests, first set the ``PETSC_ARCH`` to the complex architecture.
+Then run:
+
+.. prompt:: bash
+
+    testflo . -m "cmplx_test*"

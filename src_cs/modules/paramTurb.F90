@@ -1,0 +1,129 @@
+module paramTurb
+!
+!       Module that contains the constants for the turbulence models
+!       as well as some global variables/parameters for the turbulent
+!       routines.
+!
+    use constants, only: realType, intType
+       use complexify 
+    implicit none
+    save
+!
+!       Spalart-Allmaras constants.
+!
+    complex(kind=realType), parameter :: rsaK = 0.41_realType
+    complex(kind=realType), parameter :: rsaCb1 = 0.1355_realType
+    complex(kind=realType), parameter :: rsaCb2 = 0.622_realType
+    complex(kind=realType), parameter :: rsaCb3 = 0.66666666667_realType
+    complex(kind=realType), parameter :: rsaCv1 = 7.1_realType
+    complex(kind=realType), parameter :: rsaCw1 = rsaCb1 / (rsaK * rsaK) &
+                                      + (1.+rsaCb2) / rsaCb3
+    complex(kind=realType), parameter :: rsaCw2 = 0.3_realType
+    complex(kind=realType), parameter :: rsaCw3 = 2.0_realType
+    complex(kind=realType), parameter :: rsaCt1 = 1.0_realType
+    complex(kind=realType), parameter :: rsaCt2 = 2.0_realType
+    complex(kind=realType), parameter :: rsaCt3 = 1.2_realType
+    complex(kind=realType), parameter :: rsaCt4 = 0.5_realType
+    complex(kind=realType), parameter :: rsaCrot = 2.0_realType
+
+!
+!       K-omega constants.
+!
+    complex(kind=realType), parameter :: rkwK = 0.41_realType
+    complex(kind=realType), parameter :: rkwSigk1 = 0.5_realType
+    complex(kind=realType), parameter :: rkwSigw1 = 0.5_realType
+    complex(kind=realType), parameter :: rkwSigd1 = 0.5_realType
+    complex(kind=realType), parameter :: rkwBeta1 = 0.0750_realType
+    complex(kind=realType), parameter :: rkwBetas = 0.09_realType
+!
+!       K-omega SST constants.
+!
+    complex(kind=realType), parameter :: rSSTK = 0.41_realType
+    complex(kind=realType), parameter :: rSSTA1 = 0.31_realType
+    complex(kind=realType), parameter :: rSSTBetas = 0.09_realType
+
+    complex(kind=realType), parameter :: rSSTSigk1 = 0.85_realType
+    complex(kind=realType), parameter :: rSSTSigw1 = 0.5_realType
+    complex(kind=realType), parameter :: rSSTBeta1 = 0.0750_realType
+
+    complex(kind=realType), parameter :: rSSTSigk2 = 1.0_realType
+    complex(kind=realType), parameter :: rSSTSigw2 = 0.856_realType
+    complex(kind=realType), parameter :: rSSTBeta2 = 0.0828_realType
+!
+!       K-tau constants.
+!
+    complex(kind=realType), parameter :: rktK = 0.41_realType
+    complex(kind=realType), parameter :: rktSigk1 = 0.5_realType
+    complex(kind=realType), parameter :: rktSigt1 = 0.5_realType
+    complex(kind=realType), parameter :: rktSigd1 = 0.5_realType
+    complex(kind=realType), parameter :: rktBeta1 = 0.0750_realType
+    complex(kind=realType), parameter :: rktBetas = 0.09_realType
+!
+!       V2-f constants.
+!
+    complex(kind=realType), parameter :: rvfC1 = 1.4_realType
+    complex(kind=realType), parameter :: rvfC2 = 0.3_realType
+    complex(kind=realType), parameter :: rvfBeta = 1.9_realType
+    complex(kind=realType), parameter :: rvfSigk1 = 1.0_realType
+    complex(kind=realType), parameter :: rvfSige1 = 0.7692307692_realType
+    complex(kind=realType), parameter :: rvfSigv1 = 1.00_realType
+    complex(kind=realType), parameter :: rvfCn = 70.0_realType
+
+    complex(kind=realType), parameter :: rvfN1Cmu = 0.190_realType
+    complex(kind=realType), parameter :: rvfN1A = 1.300_realType
+    complex(kind=realType), parameter :: rvfN1B = 0.250_realType
+    complex(kind=realType), parameter :: rvfN1Cl = 0.300_realType
+    complex(kind=realType), parameter :: rvfN6Cmu = 0.220_realType
+    complex(kind=realType), parameter :: rvfN6A = 1.400_realType
+    complex(kind=realType), parameter :: rvfN6B = 0.045_realType
+    complex(kind=realType), parameter :: rvfN6Cl = 0.230_realType
+
+    complex(kind=realType) :: rvfLimitK, rvfLimitE, rvfCl
+    complex(kind=realType) :: rvfCmu
+!
+!       Variables to store the parameters for the wall functions fits.
+!       As these variables depend on the turbulence model they are set
+!       during runtime. Allocatables are used, because the number of
+!       fits could be different for the different models.
+!       The curve is divided in a number of intervals and is
+!       constructed such that both the function and the derivatives
+!       are continuous. Consequently cubic polynomials are used.
+!
+    ! nFit:               Number of intervals of the curve.
+    ! ypT(0:nFit):        y+ values at the interval boundaries.
+    ! reT(0:nFit):        Reynolds number at the interval
+    !                     boundaries, where the Reynolds number is
+    !                     defined with the local velocity and the
+    !                     wall distance.
+    ! up0(nFit):          Coefficient 0 in the fit for the
+    !                     nondimensional tangential velocity as a
+    !                     function of the Reynolds number.
+    ! up1(nFit):          Idem for coefficient 1.
+    ! up2(nFit):          Idem for coefficient 2.
+    ! up3(nFit):          Idem for coefficient 3.
+    ! tup0(nFit,nt1:nt2): Coefficient 0 in the fit for the
+    !                     nondimensional turbulence variables as a
+    !                     function of y+.
+    ! tup1(nFit,nt1:nt2): Idem for coefficient 1.
+    ! tup2(nFit,nt1:nt2): Idem for coefficient 2.
+    ! tup3(nFit,nt1:nt2): Idem for coefficient 3.
+    ! tuLogFit(nt1:nt2):  Whether or not the logarithm of the variable
+    !                     has been fitted.
+
+    integer(kind=intType) :: nFit
+
+    complex(kind=realType), dimension(:), allocatable :: ypT, reT
+    complex(kind=realType), dimension(:), allocatable :: up0, up1
+    complex(kind=realType), dimension(:), allocatable :: up2, up3
+
+    complex(kind=realType), dimension(:, :), allocatable :: tup0, tup1
+    complex(kind=realType), dimension(:, :), allocatable :: tup2, tup3
+#ifndef USE_TAPENADE
+    complex(kind=realType), dimension(:), allocatable :: ypTb, reTb
+    complex(kind=realType), dimension(:), allocatable :: up0b, up1b
+    complex(kind=realType), dimension(:), allocatable :: up2b, up3b
+#endif
+
+    logical, dimension(:), allocatable :: tuLogFit
+
+end module paramTurb

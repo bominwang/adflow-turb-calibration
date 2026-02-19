@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Compilation intermediates
+src/build/*.o
+src/build/*.a
+src/build/*.mod
+
+# Backup files
+*.bak
+
+# OS files
+.DS_Store
+Thumbs.db
+src_cs/build/*.a

@@ -1,0 +1,1452 @@
+!##############################################################################!
+!                           DO NOT MODIFY THIS FILE!                           !
+!                           MODIFY adflow.pyf INSTEAD!                           !
+!##############################################################################!
+!    -*- f90 -*-
+python module libadflow_cs ! in
+    interface  ! in :adflow
+
+       ! ############################################################################
+       ! ADflow Modules
+       ! ############################################################################
+       module constants ! in :adflow:../../modules/constants.F90
+         use precision
+         integer parameter,optional :: maxstringlen   = 256
+         integer parameter,optional :: maxcgnsnamelen =  32
+         integer(kind=4) parameter,optional :: eulerequations=1_inttype
+         integer(kind=4) parameter,optional :: nsequations=2_inttype
+         integer(kind=4) parameter,optional :: ransequations=3_inttype
+         integer(kind=4) parameter,optional :: steady=1_inttype
+         integer(kind=4) parameter,optional :: unsteady=2_inttype
+         integer(kind=4) parameter,optional :: timespectral=3_inttype
+         integer(kind=4) parameter,optional :: internalflow=1_inttype
+         integer(kind=4) parameter,optional :: externalflow=2_inttype
+         integer(kind=4) parameter,optional :: cpconstant=1_inttype
+         integer(kind=4) parameter,optional :: cptempcurvefits=2_inttype
+         integer(kind=4) parameter,optional :: spalartallmaras=2_inttype
+         integer(kind=4) parameter,optional :: spalartallmarasedwards=3_inttype
+         integer(kind=4) parameter,optional :: komegawilcox=4_inttype
+         integer(kind=4) parameter,optional :: komegamodified=5_inttype
+         integer(kind=4) parameter,optional :: ktau=6_inttype
+         integer(kind=4) parameter,optional :: mentersst=7_inttype
+         integer(kind=4) parameter,optional :: v2f=10_inttype
+         integer(kind=4) parameter,optional :: strain=1_inttype
+         integer(kind=4) parameter,optional :: vorticity=2_inttype
+         integer(kind=4) parameter,optional :: katolaunder=3_inttype
+         integer(kind=4) parameter,optional :: dissscalar=1_inttype
+         integer(kind=4) parameter,optional :: dissmatrix=2_inttype
+         integer(kind=4) parameter,optional :: disscusp=3_inttype
+         integer(kind=4) parameter,optional :: upwind=9_inttype
+         integer(kind=4) parameter,optional :: roe=1_inttype
+         integer(kind=4) parameter,optional :: vanleer=2_inttype
+         integer(kind=4) parameter,optional :: ausmdv=3_inttype
+         integer(kind=4) parameter,optional :: nolimiter=2_inttype
+         integer(kind=4) parameter,optional :: vanalbeda=3_inttype
+         integer(kind=4) parameter,optional :: minmod=4_inttype
+         integer(kind=4) parameter,optional :: noprecond=1_inttype
+         integer(kind=4) parameter,optional :: turkel=2_inttype
+         integer(kind=4) parameter,optional :: choimerkle=3_inttype
+         integer(kind=4) parameter,optional :: constantpressure=1_inttype
+         integer(kind=4) parameter,optional :: linextrapolpressure=2_inttype
+         integer(kind=4) parameter,optional :: quadextrapolpressure=3_inttype
+         integer(kind=4) parameter,optional :: normalmomentum=4_inttype
+         integer(kind=4) parameter,optional :: constantextrapol=1_inttype
+         integer(kind=4) parameter,optional :: linextrapol=2_inttype
+         integer(kind=4) parameter,optional :: rungekutta=1_inttype
+         integer(kind=4) parameter,optional :: dadi=2_inttype
+         integer(kind=4) parameter,optional :: nllusgs=3_inttype
+         integer(kind=4) parameter,optional :: nllusgsline=4_inttype
+         integer(kind=4) parameter,optional :: decoupled=1_inttype
+         integer(kind=4) parameter,optional :: coupled=2_inttype
+         integer(kind=4) parameter,optional :: gmres=1_inttype
+         integer(kind=4) parameter,optional :: adi=2_inttype
+         integer(kind=4) parameter,optional :: bcdirichlet0=0_inttype
+         integer(kind=4) parameter,optional :: bcneumann0=1_inttype
+         integer(kind=4) parameter,optional :: noresaveraging=0_inttype
+         integer(kind=4) parameter,optional :: alwaysresaveraging=1_inttype
+         integer(kind=4) parameter,optional :: alternateresaveraging=2_inttype
+         integer(kind=4) parameter,optional :: turbrelaxnotdefined=0_inttype
+         integer(kind=4) parameter,optional :: turbrelaxexplicit=1_inttype
+         integer(kind=4) parameter,optional :: turbrelaximplicit=2_inttype
+         integer(kind=4) parameter,optional :: precisionsingle=1
+         integer(kind=4) parameter,optional :: precisiondouble=2
+         integer(kind=4) parameter,optional :: bdf=1
+         integer(kind=4) parameter,optional :: explicitrk=2
+         integer(kind=4) parameter,optional :: implicitrk=3
+         integer(kind=4) parameter,optional :: md=4
+         integer(kind=4) :: nolinesearch=0_inttype
+         integer(kind=4) :: cubiclinesearch=1_inttype
+         integer(kind=4) :: nonmonotonelinesearch=2_inttype
+         integer(kind=4) :: updatefrozen = 0_inttype
+         integer(kind=4) :: updatefast = 1_inttype
+         integer(kind=4) :: updatefull = 2_inttype
+
+         ! Cost functions
+         integer(kind=4) :: ncostfunction
+         integer(kind=4) parameter,optional :: costfunccdq=30
+         integer(kind=4) parameter,optional :: costfuncforcezcoef=10
+         integer(kind=4) parameter,optional :: costfuncmomzcoef=16
+         integer(kind=4) parameter,optional :: costfunccm0=17
+         integer(kind=4) parameter,optional :: costfuncforcex=5
+         integer(kind=4) parameter,optional :: costfuncclq=25
+         integer(kind=4) parameter,optional :: costfuncdrag=2
+         integer(kind=4) parameter,optional :: costfunccl0=22
+         integer(kind=4) parameter,optional :: costfunccmzqdot=21
+         integer(kind=4) parameter,optional :: costfuncforcexcoef=8
+         integer(kind=4) parameter,optional :: costfunccmzq=20
+         integer(kind=4) parameter,optional :: costfunccmzalphadot=19
+         integer(kind=4) parameter,optional :: costfunclift=1
+         integer(kind=4) parameter,optional :: costfunccd0=27
+         integer(kind=4) parameter,optional :: costfuncclqdot=26
+         integer(kind=4) parameter,optional :: costfuncforcey=6
+         integer(kind=4) parameter,optional :: costfuncforcez=7
+         integer(kind=4) parameter,optional :: costfuncmomz=13
+         integer(kind=4) parameter,optional :: costfunccdqdot=31
+         integer(kind=4) parameter,optional :: costfuncmomx=11
+         integer(kind=4) parameter,optional :: costfuncmomy=12
+         integer(kind=4) parameter,optional :: costfunccdalphadot=29
+         integer(kind=4) parameter,optional :: costfuncmomxcoef=14
+         integer(kind=4) parameter,optional :: costfunccdalpha=28
+         integer(kind=4) parameter,optional :: costfuncliftcoef=3
+         integer(kind=4) parameter,optional :: costfunccmzalpha=18
+         integer(kind=4) parameter,optional :: costfuncdragcoef=4
+         integer(kind=4) parameter,optional :: costfuncclalphadot=24
+         integer(kind=4) parameter,optional :: costfuncforceycoef=9
+         integer(kind=4) parameter,optional :: costfuncclalpha=23
+         integer(kind=4) parameter,optional :: costfuncmomycoef=15
+         integer(kind=4) parameter,optional :: costfunccfy0=32
+         integer(kind=4) parameter,optional :: costfunccfyalpha=33
+         integer(kind=4) parameter,optional :: costfunccfyalphadot=34
+         integer(kind=4) parameter,optional :: costfunccfyq=35
+         integer(kind=4) parameter,optional :: costfunccfyqdot=36
+         integer(kind=4) parameter,optional :: costfuncbendingcoef=37
+         integer(kind=4) parameter,optional :: costfuncsepsensor=38
+         integer(kind=4) parameter,optional :: costfuncsepsensoravgx=39
+         integer(kind=4) parameter,optional :: costfuncsepsensoravgy=40
+         integer(kind=4) parameter,optional :: costfuncsepsensoravgz=41
+         integer(kind=4) parameter,optional :: costfunccavitation=42
+         integer(kind=4) parameter,optional :: costfuncmdot=43
+         integer(kind=4) parameter,optional :: costfuncmavgptot=44
+         integer(kind=4) parameter,optional :: costfuncmavgttot=45
+         integer(kind=4) parameter,optional :: costfuncmavgrho=46
+         integer(kind=4) parameter,optional :: costfuncmavgps=47
+         integer(kind=4) parameter,optional :: costfuncmavgmn=48
+         integer(kind=4) parameter,optional :: costfuncmavga=49
+         integer(kind=4) parameter,optional :: costfuncarea=50
+         integer(kind=4) parameter,optional :: costfuncaxismoment=51
+         integer(kind=4) parameter,optional :: costfuncflowpower=52
+         integer(kind=4) parameter,optional :: costfuncforcexpressure=53
+         integer(kind=4) parameter,optional :: costfuncforceypressure=54
+         integer(kind=4) parameter,optional :: costfuncforcezpressure=55
+         integer(kind=4) parameter,optional :: costfuncforcexviscous=56
+         integer(kind=4) parameter,optional :: costfuncforceyviscous=57
+         integer(kind=4) parameter,optional :: costfuncforcezviscous=58
+         integer(kind=4) parameter,optional :: costfuncforcexmomentum=59
+         integer(kind=4) parameter,optional :: costfuncforceymomentum=60
+         integer(kind=4) parameter,optional :: costfuncforcezmomentum=61
+         integer(kind=4) parameter,optional :: costfuncdragpressure=62
+         integer(kind=4) parameter,optional :: costfuncdragviscous=63
+         integer(kind=4) parameter,optional :: costfuncdragmomentum=64
+         integer(kind=4) parameter,optional :: costfuncliftpressure=65
+         integer(kind=4) parameter,optional :: costfuncliftviscous=66
+         integer(kind=4) parameter,optional :: costfuncliftmomentum=67
+         integer(kind=4) parameter,optional :: costfuncforcexcoefpressure=68
+         integer(kind=4) parameter,optional :: costfuncforcexcoefviscous=69
+         integer(kind=4) parameter,optional :: costfuncforcexcoefmomentum=70
+         integer(kind=4) parameter,optional :: costfuncforceycoefpressure=71
+         integer(kind=4) parameter,optional :: costfuncforceycoefviscous=72
+         integer(kind=4) parameter,optional :: costfuncforceycoefmomentum=73
+         integer(kind=4) parameter,optional :: costfuncforcezcoefpressure=74
+         integer(kind=4) parameter,optional :: costfuncforcezcoefviscous=75
+         integer(kind=4) parameter,optional :: costfuncforcezcoefmomentum=76
+         integer(kind=4) parameter,optional :: costfuncliftcoefpressure=77
+         integer(kind=4) parameter,optional :: costfuncliftcoefviscous=78
+         integer(kind=4) parameter,optional :: costfuncliftcoefmomentum=79
+         integer(kind=4) parameter,optional :: costfuncdragcoefpressure=80
+         integer(kind=4) parameter,optional :: costfuncdragcoefviscous=81
+         integer(kind=4) parameter,optional :: costfuncdragcoefmomentum=82
+         integer(kind=4) parameter,optional :: costfuncmavgvx=83
+         integer(kind=4) parameter,optional :: costfuncmavgvy=84
+         integer(kind=4) parameter,optional :: costfuncmavgvz=85
+         integer(kind=4) parameter,optional :: costfunccperror2=86
+         integer(kind=4) parameter,optional :: costfuncaavgptot=87
+         integer(kind=4) parameter,optional :: costfuncaavgps=88
+         integer(kind=4) parameter,optional :: costfunccpmin=89
+         integer(kind=4) parameter,optional :: costfunccoforcexx=90
+         integer(kind=4) parameter,optional :: costfunccoforcexy=91
+         integer(kind=4) parameter,optional :: costfunccoforcexz=92
+         integer(kind=4) parameter,optional :: costfunccoforceyx=93
+         integer(kind=4) parameter,optional :: costfunccoforceyy=94
+         integer(kind=4) parameter,optional :: costfunccoforceyz=95
+         integer(kind=4) parameter,optional :: costfunccoforcezx=96
+         integer(kind=4) parameter,optional :: costfunccoforcezy=97
+         integer(kind=4) parameter,optional :: costfunccoforcezz=98
+         integer(kind=4) parameter,optional :: costfunccofliftx=99
+         integer(kind=4) parameter,optional :: costfunccoflifty=100
+         integer(kind=4) parameter,optional :: costfunccofliftz=101
+         integer(kind=4) parameter,optional :: costfuncmavgvi=102
+         integer(kind=4) parameter,optional :: costfuncsepsensorks=103
+         integer(kind=4) parameter,optional :: costfuncsepsensorksarea=104
+       end module constants
+
+       module utils
+         subroutine writeintromessage
+         end subroutine writeintromessage
+
+         subroutine getliftdirfromsymmetry(liftdir)
+           integer(kind=4), intent(out) :: liftdir
+         end subroutine getliftdirfromsymmetry
+
+         subroutine allocconvarrays(nitertot)
+           integer(kind=4) :: nitertot
+         end subroutine allocconvarrays
+
+         subroutine alloctimearrays(nitertot)
+           integer(kind=4) :: ntimetot
+         end subroutine alloctimearrays
+
+         subroutine unsteadyheader
+         end subroutine unsteadyheader
+
+
+         subroutine pointreduce(pts,n,tol,uniquepts,link,nunique) ! in :test:utils.F90:utils
+           complex(kind=8) dimension(3,n),intent(in) :: pts
+           integer(kind=4), optional,intent(in),check(shape(pts,1)==n),depend(pts) :: n=shape(pts,1)
+           complex(kind=8) intent(in) :: tol
+           complex(kind=8) dimension(3,n),intent(out),depend(n) :: uniquepts
+           integer(kind=4) dimension(n),intent(out),depend(n) :: link
+           integer(kind=4) intent(out) :: nunique
+         end subroutine pointreduce
+
+         subroutine getcellcenters(level,n,xcen) ! in :test:utils.F90:utils
+           integer(kind=4) intent(in) :: level
+           integer(kind=4) intent(in) :: n
+           complex(kind=8) dimension(3,n),intent(out),depend(n) :: xcen
+         end subroutine getcellcenters
+
+         subroutine getcellcgnsblockids(level,n,cellid) ! in :test:utils.F90:utils
+           integer(kind=4) intent(in) :: level
+           integer(kind=4) intent(in) :: n
+           complex(kind=8) dimension(n),intent(out),depend(n) :: cellid
+         end subroutine getcellcgnsblockids
+
+         subroutine getncgnszones(nzones) ! in :test:utils.F90
+           integer(kind=4) intent(out) :: nzones
+         end subroutine getncgnszones
+         subroutine getcgnszonename(i,zone) ! in :test:utils.F90
+           integer(kind=4) intent(in) :: i
+           character(32) intent(out) :: zone
+         end subroutine getcgnszonename
+
+         subroutine releasememorypart1
+         end subroutine releasememorypart1
+
+         subroutine releasememorypart2
+         end subroutine releasememorypart2
+
+         subroutine getmonitorvariablenames(nvar, monitor_variables)
+           integer(kind=4), intent(in) :: nvar
+           character, dimension(nvar,32), intent(out):: monitor_variables
+         end subroutine getmonitorvariablenames
+
+         subroutine getsolvertypearray(niter, nsps, type_array)
+           integer(kind=4), intent(in) :: niter, nsps,
+           character, dimension(0:niter,nsps,8), intent(out):: type_array
+         end subroutine getsolvertypearray
+
+
+       end module utils
+
+       module walldistance
+
+         subroutine updatewalldistancealllevels
+         end subroutine updatewalldistancealllevels
+
+       end module walldistance
+
+       module initializeflow
+
+         subroutine updatebcdataalllevels
+         end subroutine updatebcdataalllevels
+
+         subroutine initflow
+         end subroutine initflow
+
+         subroutine initflowrestart
+         end subroutine initflowrestart
+
+         subroutine setuniformflow
+         end subroutine setuniformflow
+
+         subroutine allocrestartfiles(nfiles)
+           integer(kind=4) :: nfiles
+         end subroutine allocrestartfiles
+
+         subroutine setrestartfiles(filename,i)
+           character*(*) intent(in) :: filename
+           integer(kind=4) :: i
+         end subroutine setrestartfiles
+
+         subroutine infchangecorrection(oldwinf, correctiontol, correctiontype) ! in :test:solverUtils.F90:solverutils
+           complex(kind=8), dimension(5),intent(in) :: oldwinf
+           complex(kind=8), intent(in) :: correctiontol
+           character*(*), intent(in) :: correctiontype
+         end subroutine infchangecorrection
+
+       end module initializeflow
+
+       module bcdata
+         subroutine setbcdata(bcdatanamesin,bcdatain,famlists,sps,nvar,nfammax) ! in :test:BCData.F90:bcdata
+           character dimension(nvar,32),intent(in) :: bcdatanamesin
+           complex(kind=8) dimension(nvar),intent(in),depend(nvar) :: bcdatain
+           integer(kind=4) dimension(nvar,nfammax),depend(nvar) :: famlists
+           integer(kind=4) intent(in) :: sps
+           integer(kind=4), optional,intent(in),check(shape(bcdatanamesin,0)==nvar),depend(bcdatanamesin) :: nvar=shape(bcdatanamesin,0)
+           integer(kind=4), optional,intent(in),check(shape(famlists,1)==nfammax),depend(famlists) :: nfammax=shape(famlists,1)
+         end subroutine setbcdata
+
+       end module bcdata
+
+
+       module amg
+
+         subroutine setupamg
+         end subroutine setupamg
+
+         subroutine destroyamg
+         end subroutine destroyamg
+
+       end module amg
+
+       module flowutils
+
+         subroutine updategamma
+         end subroutine updategamma
+
+         subroutine adjustinflowangle()
+         end subroutine adjustinflowangle
+
+       end module flowutils
+
+       module inputparamroutines
+
+         subroutine setdefaultvalues()
+         end subroutine setdefaultvalues
+
+         subroutine monitorvariables(variables) ! in :test:monitorVariables.f90
+           character*(*) intent(in) :: variables
+         end subroutine monitorvariables
+
+         subroutine surfacevariables(variables) ! in :test:surfaceVariables.f90
+           character*(*) intent(in) :: variables
+         end subroutine surfacevariables
+
+         subroutine volumevariables(variables) ! in :test:volumeVariables.f90
+           character*(*) intent(in) :: variables
+         end subroutine volumevariables
+
+         subroutine isovariables(variables) ! in :test:volumeVariables.f90
+           character*(*) intent(in) :: variables
+         end subroutine isovariables
+
+         subroutine initializeisosurfacevariables(values,nvalues) ! in :test:setIsoSurfaceValues.F90
+           complex(kind=8), dimension(nvalues),intent(in) :: values
+           integer(kind=4), optional,intent(in),check(len(values)>=nvalues),depend(values) :: nvalues=len(values)
+         end subroutine initializeisosurfacevariables
+
+         subroutine setisosurfacevariable(variable,ivar) ! in :test:setIsoSurfaceValues.F90
+           character*(*), intent(in) :: variable
+           integer(kind=4), intent(in) :: ivar
+         end subroutine setisosurfacevariable
+
+         subroutine dummyreadparamfile ! in :adflow:../../inputParam/readParamFile.f90
+         end subroutine dummyreadparamfile
+
+       end module inputparamroutines
+
+       module nksolver
+         use constants
+
+         character(len=maxstringlen) :: nk_precondtype
+         integer(kind=4) :: nk_innerpreconits
+         integer(kind=4) :: nk_innerpreconitscoarse
+         integer(kind=4) :: nk_outerpreconits
+         integer(kind=4) :: nk_amglevels
+         integer(kind=4) :: nk_amgnsmooth
+         integer(kind=4) :: nk_jacobianlag
+         logical :: usenksolver
+         logical :: nk_adpc
+         logical :: nk_useew
+         logical :: nk_viscpc
+         integer(kind=4) :: nk_ls
+         integer(kind=4) :: nk_subspace
+         integer(kind=4) :: nk_asmoverlap
+         integer(kind=4) :: nk_asmoverlapcoarse
+         complex(kind=8) :: nk_rtolinit
+         integer(kind=4) :: nk_ilufill
+         integer(kind=4) :: nk_ilufillcoarse
+         complex(kind=8) :: nk_switchtol
+         complex(kind=8) :: nk_cfl0
+         complex(kind=8) :: nk_fixedstep
+         integer(kind=4) :: applypcsubspacesize
+         logical :: freestreamresset
+
+         subroutine getstates(states,ndimw)
+           complex(kind=8) dimension(ndimw),intent(out),depend(ndimw) :: states
+           integer(kind=4) intent(in) :: ndimw
+         end subroutine getstates
+
+         subroutine setstates(states,ndimw)
+           complex(kind=8) dimension(ndimw),intent(in) :: states
+           integer(kind=4) optional,intent(in),check(len(states)>=ndimw),depend(states) :: ndimw=len(states)
+         end subroutine setstates
+
+         subroutine getinfosize(isize)
+           integer(kind=4) intent(out) :: isize
+         end subroutine getinfosize
+
+         subroutine setinfo(info,isize)
+           complex(kind=8) dimension(isize),intent(in) :: info
+           integer(kind=4) optional,intent(in),check(len(info)>=isize),depend(info) :: isize=len(info)
+         end subroutine setinfo
+
+         subroutine getinfo(info,isize)
+           complex(kind=8) dimension(isize),intent(out),depend(isize) :: info
+           integer(kind=4) intent(in) :: isize
+         end subroutine getinfo
+
+         subroutine getres(res,ndimw)
+           complex(kind=8) dimension(ndimw),intent(in,out) :: res
+           integer(kind=4) optional,intent(in),check(len(res)>=ndimw),depend(res) :: ndimw=len(res)
+         end subroutine getres
+
+         subroutine applypc(in_vec,out_vec,ndof)
+           complex(kind=8) dimension(ndof),intent(in) :: in_vec
+           complex(kind=8) dimension(ndof),intent(in, out),depend(ndof) :: out_vec
+           integer(kind=4) optional,check(len(in_vec)>=ndof),depend(in_vec) :: ndof=len(in_vec)
+         end subroutine applypc
+
+         subroutine applyadjointpc(in_vec,out_vec,ndof)
+           complex(kind=8) dimension(ndof),intent(in) :: in_vec
+           complex(kind=8) dimension(ndof),intent(in, out),depend(ndof) :: out_vec
+           integer(kind=4) optional,check(len(in_vec)>=ndof),depend(in_vec) :: ndof=len(in_vec)
+         end subroutine applyadjointpc
+
+         subroutine destroynksolver
+         end subroutine destroynksolver
+
+         subroutine getfreestreamresidual(rhores,totalrres) ! in :test:NKSolvers.F90:nksolver
+           complex(kind=8) intent(out) :: rhores
+           complex(kind=8) intent(out) :: totalrres
+         end subroutine getfreestreamresidual
+
+       end module nksolver
+
+       module anksolver
+         use constants
+
+         character(len=maxstringlen) :: ank_precondtype
+         integer(kind=4) :: ank_innerpreconits
+         integer(kind=4) :: ank_innerpreconitscoarse
+         integer(kind=4) :: ank_outerpreconits
+         integer(kind=4) :: ank_amglevels
+         integer(kind=4) :: ank_amgnsmooth
+         integer(kind=4) :: ank_jacobianlag
+         logical :: useanksolver
+         logical :: ank_useturbdadi
+         logical :: ank_useapproxsa
+         integer(kind=4) :: ank_subspace
+         integer(kind=4) :: ank_maxiter
+         integer(kind=4) :: ank_asmoverlap
+         integer(kind=4) :: ank_asmoverlapcoarse
+         complex(kind=8) :: ank_rtol
+         complex(kind=8) :: ank_atol_buffer
+         complex(kind=8) :: ank_linresmax
+         integer(kind=4) :: ank_ilufill
+         integer(kind=4) :: ank_ilufillcoarse
+         complex(kind=8) :: ank_switchtol
+         complex(kind=8) :: ank_cfl
+         complex(kind=8) :: ank_cfl0
+         complex(kind=8) :: ank_cflmin0
+         complex(kind=8) :: ank_cfllimit
+         complex(kind=8) :: ank_cflfactor
+         complex(kind=8) :: ank_cflexponent
+         complex(kind=8) :: ank_cflcutback
+         logical :: ank_cflreset
+         complex(kind=8) :: ank_stepfactor
+         complex(kind=8) :: ank_stepmin
+         complex(kind=8) :: ank_constcflstep
+         complex(kind=8) :: ank_physlstol
+         complex(kind=8) :: ank_physlstolturb
+         complex(kind=8) :: ank_unstdylstol
+         complex(kind=8) :: ank_secondordswitchtol
+         complex(kind=8) :: ank_coupledswitchtol
+         complex(kind=8) :: ank_turbcflscale
+         logical :: ank_usefullvisc
+         complex(kind=8) :: ank_pcupdatetol
+         complex(kind=8) :: ank_pcupdatetol2
+         complex(kind=8) :: ank_pcupdatecutoff
+         logical :: ank_adpc
+         integer(kind=4) :: ank_nsubiterturb
+         logical :: ank_turbdebug
+         logical :: ank_usematrixfree
+         character(len=maxstringlen) :: ank_chartimesteptype
+         subroutine destroyanksolver
+         end subroutine destroyanksolver
+
+       end module anksolver
+
+       module partitioning
+         subroutine partitionandreadgrid(partitiononly)
+           logical :: partitiononly
+         end subroutine partitionandreadgrid
+
+         subroutine checkpartitioning(np,load_inbalance,face_inbalance)
+           integer(kind=4) intent(in) :: np
+           complex(kind=8) intent(out) :: load_inbalance
+           complex(kind=8) intent(out) :: face_inbalance
+         end subroutine checkpartitioning
+
+       end module partitioning
+
+       module warping
+
+         subroutine getcgnsmeshindices(ndof,indices)
+           integer(kind=4) intent(in) :: ndof
+           integer(kind=4) dimension(ndof),intent(out),depend(ndof) :: indices
+         end subroutine getcgnsmeshindices
+
+         subroutine setgrid(grid,ndof)
+           complex(kind=8) dimension(ndof),intent(in) :: grid
+           integer(kind=4) optional,intent(in),check(len(grid)>=ndof),depend(grid) :: ndof=len(grid)
+         end subroutine setgrid
+
+         subroutine getgrid(grid,ndof)
+           complex(kind=8) dimension(ndof),intent(out),depend(ndof) :: grid
+           integer(kind=4) intent(in) :: ndof
+         end subroutine getgrid
+
+         subroutine getstateperturbation(randvec,nrand,randstate,nrandstate)
+           complex(kind=8) dimension(nrand),intent(in) :: randvec
+           integer(kind=4), optional,intent(in),check(len(randvec)>=nrand),depend(randvec) :: nrand=len(randvec)
+           complex(kind=8) dimension(nrandstate),intent(out),depend(nrandstate) :: randstate
+           integer(kind=4) intent(in) :: nrandstate
+         end subroutine getstateperturbation
+
+          subroutine getsurfaceperturbation(xrand,nrand,randsurface,nrandsurface, famlist,nfamlist,sps) ! in :test:warping.F90:warping
+           complex(kind=8) dimension(nrand),intent(in) :: xrand
+           integer(kind=4), optional,intent(in),check(len(xrand)>=nrand),depend(xrand) :: nrand=len(xrand)
+           complex(kind=8) dimension(3 * nrandsurface),intent(inout) :: randsurface
+           integer(kind=4), optional,intent(in),check((len(randsurface))/(3)>=nrandsurface),depend(randsurface) :: nrandsurface=(len(randsurface))/(3)
+           integer(kind=4) dimension(nfamlist),intent(in) :: famlist
+           integer(kind=4), optional,intent(in),check(len(famlist)>=nfamlist),depend(famlist) :: nfamlist=len(famlist)
+           integer(kind=4) intent(in) :: sps
+         end subroutine getsurfaceperturbation
+
+         subroutine setgridforoneinstance(grid,sps) ! in warping.F90:warping
+           complex(kind=8) dimension(:),intent(in) :: grid
+           integer intent(in) :: sps
+         end subroutine setgridforoneinstance
+
+       end module warping
+
+       module surfaceutils
+         subroutine getsurfacesize(size_bn,sizecell,famlist,n,includezipper) ! in :test:surfaceUtils.F90:surfaceutils
+           integer(kind=4) intent(out) :: size_bn
+           integer(kind=4) intent(out) :: sizecell
+           integer(kind=4) dimension(n),intent(in) :: famlist
+           integer(kind=4), optional,intent(in),check(len(famlist)>=n),depend(famlist) :: n=len(famlist)
+           logical intent(in) :: includezipper
+         end subroutine getsurfacesize
+         subroutine getsurfaceconnectivity(conn,cgnsblockid,ncell,famlist,nfamlist,includezipper) ! in :test:surfaceUtils.F90:surfaceutils
+           integer(kind=4) dimension(4 * ncell),intent(inout) :: conn
+           integer(kind=4) dimension(ncell),intent(inout) :: cgnsblockid
+           integer(kind=4), optional,intent(in),check((len(conn))/(4)>=ncell),depend(conn) :: ncell=(len(conn))/(4)
+           integer(kind=4) dimension(nfamlist),intent(in) :: famlist
+           integer(kind=4), optional,intent(in),check(len(famlist)>=nfamlist),depend(famlist) :: nfamlist=len(famlist)
+           logical intent(in) :: includezipper
+         end subroutine getsurfaceconnectivity
+
+         subroutine getsurfacepoints(points,npts,sps_in,famlist,nfamlist,includezipper) ! in :test:surfaceUtils.F90:surfaceutils
+           complex(kind=8) dimension(3,npts),intent(inout) :: points
+           integer(kind=4), optional,intent(in),check(shape(points,1)==npts),depend(points) :: npts=shape(points,1)
+           integer(kind=4) intent(in) :: sps_in
+           integer(kind=4) dimension(nfamlist),intent(in) :: famlist
+           integer(kind=4), optional,intent(in),check(len(famlist)>=nfamlist),depend(famlist) :: nfamlist=len(famlist)
+           logical intent(in) :: includezipper
+         end subroutine getsurfacepoints
+
+         ! subroutine mapvector(vec1,n1,famlist1,nf1,vec2,n2,famlist2,nf2,includezipper) ! in :test:surfaceUtils.F90:surfaceutils
+         !   complex(kind=8) dimension(3,n1),intent(in) :: vec1
+         !   integer(kind=4), optional,check(shape(vec1,1)==n1),depend(vec1) :: n1=shape(vec1,1)
+         !   integer(kind=4) dimension(nf1),intent(in) :: famlist1
+         !   integer(kind=4), optional,check(len(famlist1)>=nf1),depend(famlist1) :: nf1=len(famlist1)
+         !   complex(kind=8) dimension(3,n2),intent(inout) :: vec2
+         !   integer(kind=4), optional,check(shape(vec2,1)==n2),depend(vec2) :: n2=shape(vec2,1)
+         !   integer(kind=4) dimension(nf2),intent(in) :: famlist2
+         !   integer(kind=4), optional,check(len(famlist2)>=nf2),depend(famlist2) :: nf2=len(famlist2)
+         !   logical intent(in) :: includezipper
+         ! end subroutine mapvector
+
+         subroutine mapvector(vec1,n1,famlist1,nf1,vec2,n2,famlist2,nf2,includezipper,ndim) ! in ../utils/surfaceUtils.F90:surfaceutils
+           use blockpointers, only: ndom,flowdoms
+           use sorting, only: faminlist
+           use surfacefamilies, only: bcfamgroups
+           use constants
+           use oversetdata, only: oversetpresent,zippermeshes,zippermesh
+           complex(kind=8) dimension(ndim,n1),intent(in) :: vec1
+           integer(kind=4), optional,check(shape(vec1,1)==n1),depend(vec1) :: n1=shape(vec1,1)
+           integer(kind=4) dimension(nf1),intent(in) :: famlist1
+           integer(kind=4), optional,check(len(famlist1)>=nf1),depend(famlist1) :: nf1=len(famlist1)
+           complex(kind=8) dimension(ndim,n2),intent(inout),depend(ndim) :: vec2
+           integer(kind=4), optional,check(shape(vec2,1)==n2),depend(vec2) :: n2=shape(vec2,1)
+           integer(kind=4) dimension(nf2),intent(in) :: famlist2
+           integer(kind=4), optional,check(len(famlist2)>=nf2),depend(famlist2) :: nf2=len(famlist2)
+           logical intent(in) :: includezipper
+           integer(kind=4), optional,check(shape(vec1,0)==ndim),depend(vec1) :: ndim=shape(vec1,0)
+         end subroutine mapvector
+
+         subroutine getwalllist(walllist,nwalllist,nfamtotal) ! in :test:surfaceUtils.F90:surfaceutils
+           integer(kind=4) dimension(nfamtotal),intent(out),depend(nfamtotal) :: walllist
+           integer(kind=4) intent(out) :: nwalllist
+           integer(kind=4) intent(in) :: nfamtotal
+         end subroutine getwalllist
+       end module surfaceutils
+
+       module tecplotio
+         subroutine addparaslice(slicename,pt,normal,dir_vec,use_dir,famlist,n) ! in :test:liftDistribution.F90
+           character*(*) intent(in) :: slicename
+           complex(kind=8) dimension(3),intent(in) :: pt
+           complex(kind=8) dimension(3),intent(in) :: normal
+           complex(kind=8) dimension(3),intent(in) :: dir_vec
+           logical, intent(in) :: use_dir
+           integer(kind=4) dimension(n),intent(in) :: famlist
+           integer(kind=4), optional,intent(in),check(len(famlist)>=n),depend(famlist) :: n=len(famlist)
+         end subroutine addparaslice
+
+         subroutine addabsslice(slicename,pt,normal,dir_vec,use_dir,famlist,n) ! in :test:liftDistribution.F90
+           character*(*) intent(in) :: slicename
+           complex(kind=8) dimension(3),intent(in) :: pt
+           complex(kind=8) dimension(3),intent(in) :: normal
+           complex(kind=8) dimension(3),intent(in) :: dir_vec
+           logical, intent(in) :: use_dir
+           integer(kind=4) dimension(n),intent(in) :: famlist
+           integer(kind=4), optional,intent(in),check(len(famlist)>=n),depend(famlist) :: n=len(famlist)
+         end subroutine addabsslice
+
+         subroutine addliftdistribution(nsegments,normal,normal_ind, distname,famlist,n) ! in :test:liftDistribution.F90
+           integer(kind=4) intent(in) :: nsegments
+           complex(kind=8) dimension(3), intent(in) :: normal
+           integer(kind=4), intent(in) :: normal_ind
+           character*(*) intent(in) :: distname
+           integer(kind=4) dimension(n),intent(in) :: famlist
+           integer(kind=4), optional,intent(in),check(len(famlist)>=n),depend(famlist) :: n=len(famlist)
+         end subroutine addliftdistribution
+
+         subroutine writetecplot(slicefile,writeslices,liftfile,writelift,surffile,writesurf,famlist,nfamlist) ! in :test:tecplotIO.F90:tecplotio
+           character*(*) intent(in) :: slicefile
+           logical intent(in) :: writeslices
+           character*(*) intent(in) :: liftfile
+           logical intent(in) :: writelift
+           character*(*) intent(in) :: surffile
+           logical intent(in) :: writesurf
+           integer(kind=4) dimension(nfamlist),intent(in) :: famlist
+           integer(kind=4), optional,intent(in),check(len(famlist)>=nfamlist),depend(famlist) :: nfamlist=len(famlist)
+         end subroutine writetecplot
+
+         subroutine initializeliftdistributiondata
+         end subroutine initializeliftdistributiondata
+       end subroutine tecplotio
+
+       module surfaceintegrations
+         subroutine getsolutionwrap(famlists,funcvalues,ncost,ngroups,nfammax) ! in :test:surfaceIntegrations.F90:surfaceintegrations
+           integer(kind=4) dimension(ngroups,nfammax) :: famlists
+           complex(kind=8) dimension(ncost,ngroups),intent(out),depend(ncost,ngroups) :: funcvalues
+           integer(kind=4) :: ncost
+           integer(kind=4), optional,check(shape(famlists,0)==ngroups),depend(famlists) :: ngroups=shape(famlists,0)
+           integer(kind=4), optional,check(shape(famlists,1)==nfammax),depend(famlists) :: nfammax=shape(famlists,1)
+         end subroutine getsolutionwrap
+       end module surfaceintegrations
+
+       module usersurfaceintegrations
+         subroutine addintegrationsurface(pts,conn,famname,famid,isinflow,npts,nconn) ! in :test:surfaceIntegrations.F90:surfaceintegrations
+           complex(kind=8) dimension(3,npts),intent(in) :: pts
+           integer(kind=4) dimension(3,nconn),intent(in) :: conn
+           character*maxstringlen :: famname
+           integer(kind=4), intent(in) :: famid
+           logical, intent(in) :: isinflow
+           integer(kind=4), optional,intent(in),check(shape(pts,1)==npts),depend(pts) :: npts=shape(pts,1)
+           integer(kind=4), optional,intent(in),check(shape(conn,1)==nconn),depend(conn) :: nconn=shape(conn,1)
+         end subroutine addintegrationsurface
+
+         subroutine interpolateintegrationsurfaces
+         end subroutine interpolateintegrationsurfaces
+
+       end module usersurfaceintegrations
+
+       module actuatorregion ! in :test:actuatorDiskRegion.F90
+         subroutine addactuatorregion(pts,conn,axis1,axis2,famname,famid,thrust,torque,heat,relaxstart,relaxend,npts,nconn) ! in :test:actuatorDiskRegion.F90:actuatorregion
+           complex(kind=8) dimension(3,npts),intent(in) :: pts
+           integer(kind=4) dimension(4,nconn),intent(in) :: conn
+           complex(kind=8), dimension(3),intent(in) :: axis1
+           complex(kind=8), dimension(3),intent(in) :: axis2
+           character*(*) :: famname
+           integer(kind=4) intent(in) :: famid
+           complex(kind=8) :: thrust
+           complex(kind=8) :: torque
+           complex(kind=8) :: heat
+           complex(kind=8) :: relaxstart
+           complex(kind=8) :: relaxend
+           integer(kind=4), optional,intent(in),check(shape(pts,1)==npts),depend(pts) :: npts=shape(pts,1)
+           integer(kind=4), optional,intent(in),check(shape(conn,1)==nconn),depend(conn) :: nconn=shape(conn,1)
+         end subroutine addactuatorregion
+
+         subroutine writeactuatorregions(filename)
+           character*(*) intent(in) :: filename
+         end subroutine writeactuatorregions
+       end module actuatorregion
+
+       module solvers
+
+         subroutine solver
+         end subroutine solver
+
+         subroutine solverunsteadyinit
+         end subroutine solverunsteadyinit
+
+         subroutine updateunsteadygeometry
+         end subroutine updateunsteadygeometry
+
+         subroutine solverunsteadystep
+         end subroutine solverunsteadystep
+
+       end module solvers
+
+      module aleutils
+
+         subroutine shiftlevelale
+         end subroutine shiftlevelale
+
+       end module aleutils
+
+       module preprocessingapi
+         subroutine preprocessing ! in :adflow:../../preprocessing/preprocessing.f90
+         end subroutine preprocessing
+
+         subroutine updatecoordinatesalllevels ! in :adflow:../../preprocessing/mdUpdateRoutines.f90
+         end subroutine updatecoordinatesalllevels
+
+         subroutine updatemetricsalllevels ! in :adflow:../../preprocessing/mdUpdateRoutines.f90
+         end subroutine updatemetricsalllevels
+
+         subroutine updategridvelocitiesalllevels ! in :adflow:../../preprocessing/mdUpdateRoutines.f90
+         end subroutine updategridvelocitiesalllevels
+
+         subroutine updateperiodicinfoalllevels
+         end subroutine updateperiodicinfoalllevels
+
+         subroutine shiftcoorandvolumes ! in :adflow:../../preprocessing/shiftCoorAndVolumes.F90
+         end subroutine shiftcoorandvolumes
+
+         subroutine updatereferencepoint
+         end subroutine updatereferencepoint
+
+         subroutine updaterotationrate(rotcenter,rotrate,blocks,nblocks) ! in :test:updateRotationRate.f90
+           complex(kind=8) dimension(3),intent(in) :: rotcenter
+           complex(kind=8) dimension(3),intent(in) :: rotrate
+           integer(kind=4) dimension(nblocks),intent(in) :: blocks
+           integer(kind=4), optional,intent(in),check(len(blocks)>=nblocks),depend(blocks) :: nblocks=len(blocks)
+         end subroutine updaterotationrate
+
+         subroutine preprocessingoverset(flag,n, closedfamlist, nfam) ! in :test:preprocessingAPI.F90:preprocessingapi
+           integer(kind=4) dimension(n) :: flag
+           integer(kind=4), optional,intent(in),check(len(flag)>=n),depend(flag) :: n=len(flag)
+           integer(kind=4) dimension(nfam) :: closedfamlist
+           integer(kind=4), optional,intent(in),check(len(closedfamlist)>=nfam),depend(closedfamlist) :: nfam=len(closedfamlist)
+         end subroutine preprocessingoverset
+
+       end module preprocessingapi
+
+       module oversetapi
+         subroutine updateoverset(flag, n, closedfamlist, nfam)
+           integer(kind=4) dimension(n) :: flag
+           integer(kind=4), optional,intent(in),check(len(flag)>=n),depend(flag) :: n=len(flag)
+           integer(kind=4) dimension(nfam) :: closedfamlist
+           integer(kind=4), optional,intent(in),check(len(closedfamlist)>=nfam),depend(closedfamlist) :: nfam=len(closedfamlist)
+         end subroutine updateoverset
+         subroutine writepartitionedmesh(filename)
+           character*(*) intent(in) :: filename
+         end subroutine writepartitionedmesh
+         subroutine oversetcomm(level, firstime, coarselevel)
+           integer(kind=4), intent(in) :: level
+           logical, intent(in) :: firsttime
+           logical, intent(in) :: coarselevel
+         end subroutine oversetcomm
+         subroutine setblockpriority(blkname, value, setvalue)
+           character*(*) intent(in) :: blkname
+           complex(kind=8), intent(in) :: value
+           logical, intent(out) :: setvalue
+         end subroutine setblockpriority
+         subroutine flagcellsinsurface(pts,npts,conn,nconn,flag,ncell,blockids,nblocks,k_min)
+           complex(kind=8) dimension(3,npts),intent(in) :: pts
+           integer(kind=4), optional,intent(in),check(shape(pts,1)==npts),depend(pts) :: npts=shape(pts,1)
+           integer(kind=4) dimension(4,nconn),intent(in) :: conn
+           integer(kind=4), optional,intent(in),check(shape(conn,1)==nconn),depend(conn) :: nconn=shape(conn,1)
+           integer(kind=4) dimension(ncell),intent(inout) :: flag
+           integer(kind=4), optional,intent(in),check(len(flag)==ncell),depend(flag) :: ncell=len(flag)
+           integer(kind=4) dimension(nblocks),intent(in) :: blockids
+           integer(kind=4), optional,intent(in),check(len(blockids)==nblocks),depend(blockids) :: nblocks=len(blockids)
+           integer(kind=4), intent(in) :: k_min
+         end subroutine flagcellsinsurface
+       end module oversetapi
+
+       module oversetutilities
+         subroutine getoversetiblank(blklist,n) ! in :test:oversetUtilities.F90:oversetutilities
+           integer(kind=4) dimension(n),intent(out),depend(n) :: blklist
+           integer(kind=4) intent(in) :: n
+         end subroutine getoversetiblank
+       end module oversetutilities
+
+       module adjointapi
+
+         subroutine setuppetscksp
+         end subroutine setuppetscksp
+
+         subroutine setupallresidualmatricesfwd
+         end subroutine setupallresidualmatricesfwd
+
+         subroutine solveadjoint(rhs,psi,checksolution,nstate) ! in :test:solveADjointTransposePETSc.F90
+           complex(kind=8) dimension(nstate) :: rhs
+           complex(kind=8) dimension(nstate),depend(nstate) :: psi
+           logical :: checksolution
+           integer(kind=4), optional,check(len(rhs)>=nstate),depend(rhs) :: nstate=len(rhs)
+         end subroutine solveadjoint
+
+         subroutine solveadjointforrhs(invec,outvec,ndof,relativetolerance) ! in :test:matrixFreeRoutines.F90
+           complex(kind=8) dimension(ndof),intent(in) :: invec
+           complex(kind=8) dimension(ndof),intent(out),depend(ndof) :: outvec
+           integer(kind=4), optional,intent(in),check(len(invec)>=ndof),depend(invec) :: ndof=len(invec)
+           complex(kind=8) intent(in) :: relativetolerance
+         end subroutine solveadjointforrhs
+         subroutine solvedirectforrhs(invec,outvec,ndof,relativetolerance) ! in :test:matrixFreeRoutines.F90
+           complex(kind=8) dimension(ndof),intent(in) :: invec
+           complex(kind=8) dimension(ndof),intent(out),depend(ndof) :: outvec
+           integer(kind=4), optional,intent(in),check(len(invec)>=ndof),depend(invec) :: ndof=len(invec)
+           complex(kind=8) intent(in) :: relativetolerance
+         end subroutine solvedirectforrhs
+
+         subroutine saveadjointmatrix(filename)
+           character*(*) intent(in) :: filename
+         end subroutine saveadjointmatrix
+
+         subroutine saveadjointpc(filename)
+           character*(*) intent(in) :: filename
+         end subroutine saveadjointpc
+
+         subroutine saveadjointrhs(rhs,filename,nstate) ! in :test:solveADjointTransposePETSc.F90
+           complex(kind=8) dimension(nstate) :: rhs
+           character*(*) intent(in) :: filename
+           integer(kind=4), optional,check(len(rhs)>=nstate),depend(rhs) :: nstate=len(rhs)
+         end subroutine solveadjoint
+
+
+         subroutine savecellcenters(filename)
+           character*(*) intent(in) :: filename
+         end subroutine savecellcenters
+
+         subroutine spectralprecscribedmotion(input,nin,dxv,nout)
+           complex(kind=8) dimension(nin),intent(in) :: input
+           integer(kind=4), optional,intent(in),check(len(input)>=nin),depend(input) :: nin=len(input)
+           complex(kind=8) dimension(nout),intent(out),depend(nout) :: dxv
+           integer(kind=4) intent(in) :: nout
+         end subroutine spectralprecscribedmotion
+
+         subroutine createpetscvars
+         end subroutine createpetscvars
+
+       end module adjointapi
+       module adjointdebug
+
+          subroutine computematrixfreeproductfwdcs(xvdot,extradot,wdot,bcdatavaluesdot,usespatial,usestate,famlists,bcdatanames,bcdatavalues,bcdatafamlists,bcvarsempty,dwdot,funcsdot,fdot,costsize,fsize,ntime,h_mag) ! in :test:adjointAPI.F90:adjointdebug
+            complex(kind=8) dimension(:),intent(in) :: xvdot
+            complex(kind=8) dimension(:),intent(in) :: extradot
+            complex(kind=8) dimension(:),intent(in) :: wdot
+            complex(kind=8) dimension(:),intent(in) :: bcdatavaluesdot
+            logical intent(in) :: usespatial
+            logical intent(in) :: usestate
+            integer(kind=4) dimension(:,:) :: famlists
+            character dimension(:,:),intent(in) :: bcdatanames
+            complex(kind=8) dimension(:),intent(in) :: bcdatavalues
+            integer(kind=4) dimension(:,:) :: bcdatafamlists
+            logical intent(in) :: bcvarsempty
+            complex(kind=8) dimension(size(wdot)),intent(out),depend(wdot) :: dwdot
+            complex(kind=8) dimension(costsize, size(famlists,1)),intent(out),depend(famlists,costsize) :: funcsdot
+            complex(kind=8) dimension(3,fsize,ntime),intent(out),depend(fsize,ntime) :: fdot
+            integer(kind=4) :: costsize
+            integer(kind=4) :: fsize
+            integer(kind=4) :: ntime
+            real(kind=8) :: h_mag
+
+          end subroutine computematrixfreeproductfwdcs
+       endmodule adjointdebug
+       module adjointutils
+
+         subroutine initializepetsc
+         end subroutine initializepetsc
+
+         subroutine destroypetscvars
+         end subroutine destroypetscvars
+       end module adjointutils
+
+       module zippermesh
+         subroutine createzippermesh(zipperfamlist,nzipfam) ! in :test:createZipperMesh.F90
+           integer(kind=4) dimension(nzipfam),intent(in) :: zipperfamlist
+           integer(kind=4), optional,intent(in),check(len(zipperfamlist)>=nzipfam),depend(zipperfamlist) :: nzipfam=len(zipperfamlist)
+         end subroutine createzippermesh
+         subroutine checkzipper(filename)
+           character*(*) intent(in) :: filename
+         end subroutine checkzipper
+       end module zippermesh
+
+       module oversetdata
+         use constants
+         complex(kind=8) dimension(16) :: oversettimes
+       end module oversetdata
+
+       module communication ! in :adflow:../../modules/communication.f90
+         use precision
+         integer :: adflow_comm_world
+         integer :: myid
+         integer :: nproc
+         integer allocatable,dimension(:) :: sendrequests
+         integer allocatable,dimension(:) :: recvrequests
+       end module communication
+
+       module inputdiscretization ! in :adflow:../../modules/inputParam.f90
+         use accuracy
+         integer(kind=4) :: spacediscr
+         integer(kind=4) :: spacediscrcoarse
+         integer(kind=4) :: orderturb
+         integer(kind=4) :: limiter
+         integer(kind=4) :: riemann
+         integer(kind=4) :: riemanncoarse
+         integer(kind=4) :: precond
+         integer(kind=4) :: eulerwallbctreatment
+         integer(kind=4) :: viscwallbctreatment
+         integer(kind=4) :: outflowtreatment
+         complex(kind=8) :: vis2
+         complex(kind=8) :: vis4
+         complex(kind=8) :: vis2coarse
+         complex(kind=8) :: adis
+         complex(kind=8) :: acousticscalefactor
+         complex(kind=8) :: kappacoef
+         logical :: vortexcorr
+         logical :: dirscaling
+         logical :: radiineededfine
+         logical :: radiineededcoarse
+         logical :: lumpeddiss
+         complex(kind=8) :: sigma
+         logical :: useapproxwalldistance
+         logical :: updatewallassociations
+         logical :: lowspeedpreconditioner
+         logical :: useblockettes
+       end module inputdiscretization
+
+       module cgnsgrid
+         use constants
+         integer(kind=4) :: cgnsndom
+       end module cgnsgrid
+
+       module inputio ! in :adflow:../../modules/inputParam.f90
+         use constants
+         character(len=maxstringlen) :: solfile
+         character(len=maxstringlen) :: surfacesolfile
+         character(len=maxstringlen) :: slicesolfile ! TEMPORARY
+         character(len=maxstringlen) :: liftdistributionfile ! TEMPORARY
+         character(len=maxstringlen) :: cpfile
+         logical :: writecoormeter
+         integer(kind=4) :: precisionsol
+         integer(kind=4) :: precisiongrid
+         integer(kind=4) :: precisionsurfsol
+         integer(kind=4) :: precisionsurfgrid
+         character(len=maxstringlen) :: newgridfile
+         character(len=maxstringlen) :: gridfile
+         logical :: storeconvinneriter
+         logical :: storerindlayer
+         logical :: checkrestartsol
+         logical :: autoparameterupdate
+         logical :: viscoussurfacevelocities
+         logical optional :: firstwrite=.true.
+         character(len=maxstringlen) :: paramfile
+         character(len=maxstringlen) :: forcedvolumefile
+         character(len=maxstringlen) :: forcedsurfacefile
+         character(len=maxstringlen) :: forcedliftfile
+         character(len=maxstringlen) :: forcedslicefile
+         character(len=maxstringlen) :: convsolfilebasename
+       end module inputio
+
+       module inputiteration ! in :adflow:../../modules/inputParam.f90
+         use constants
+         logical :: rkreset
+         character(len=maxstringlen) :: mgdescription
+         integer(kind=4) :: ncycles
+         complex(kind=8) :: timelimit
+         integer(kind=4) :: ncyclescoarse
+         integer(kind=4) :: nsavevolume
+         integer(kind=4) :: nsavesurface
+         integer(kind=4) :: nsgstartup
+         integer(kind=4) :: smoother
+         integer(kind=4) :: nrkstages
+         integer(kind=4) :: resaveraging
+         complex(kind=8) :: cfllimit
+         integer(kind=4) :: turbtreatment
+         integer(kind=4) :: nsubiterturb
+         integer(kind=4) :: nsubiterations
+         integer(kind=4) :: turbsmoother
+         integer(kind=4) :: turbrelax
+         integer(kind=4) :: mgboundcorr
+         integer(kind=4) :: mgstartlevel
+         integer(kind=4) :: nmgsteps
+         integer(kind=4) :: nmglevels
+         integer(kind=4) :: miniternum
+         integer(kind=4) :: convcheckwindowsize
+         integer(kind=4) allocatable,dimension(:) :: cyclestrategy
+         complex(kind=8) :: cfl
+         complex(kind=8) :: cflcoarse
+         complex(kind=8) :: fcoll
+         complex(kind=8) :: smoop
+         complex(kind=8) :: alfaturb
+         complex(kind=8) :: betaturb
+         complex(kind=8) :: l2conv
+         complex(kind=8) :: l2convcoarse
+         complex(kind=8) :: l2convrel
+         complex(kind=8) :: epscoefconv
+         complex(kind=8) allocatable,dimension(:) :: etark
+         complex(kind=8) allocatable,dimension(:) :: cdisrk
+         complex(kind=8), dimension(4) :: turbresscale
+         complex(kind=8) :: meshmaxskewness
+         logical :: useskewnesscheck
+         logical :: freezeturbsource
+         logical :: printiterations
+         logical :: printwarnings
+         logical :: printnegativevolumes
+         logical :: printbadlyskewedcells
+         logical :: printbcwarnings
+         complex(kind=8) ::maxl2deviationfactor
+         logical :: uselinresmonitor
+         logical :: usedisscontinuation
+         complex(kind=8) :: disscontmagnitude
+         complex(kind=8) :: disscontmidpoint
+         complex(kind=8) :: disscontsharpness
+       end module inputiteration
+
+       module inputmotion ! in :adflow:../../modules/inputParam.f90
+         use precision
+         complex(kind=8), dimension(3) :: rotpoint
+         complex(kind=8) allocatable,dimension(:) :: coscoeffouryrot
+         complex(kind=8) allocatable,dimension(:) :: coscoeffourxrot
+         integer(kind=4) :: degreefourxrot
+         complex(kind=8) allocatable,dimension(:) :: sincoeffouralpha
+         complex(kind=8) :: omegafourbeta
+         complex(kind=8) allocatable,dimension(:) :: coscoeffourbeta
+         complex(kind=8) allocatable,dimension(:) :: sincoeffourbeta
+         integer(kind=4) :: degreepolbeta
+         complex(kind=8) allocatable,dimension(:) :: sincoeffourmach
+         integer(kind=4) :: degreepolmach
+         complex(kind=8) :: omegafourmach
+         integer(kind=4) :: degreepolalpha
+         complex(kind=8) allocatable,dimension(:) :: coefpolmach
+         complex(kind=8) allocatable,dimension(:) :: coscoeffouralpha
+         complex(kind=8) allocatable,dimension(:) :: coscoeffourmach
+         complex(kind=8) allocatable,dimension(:) :: coefpolzrot
+         logical :: gridmotionspecified
+         complex(kind=8) :: omegafourzrot
+         integer(kind=4) :: degreefouryrot
+         complex(kind=8) allocatable,dimension(:) :: coefpolyrot
+         integer(kind=4) :: degreefourbeta
+         complex(kind=8) :: omegafouralpha
+         complex(kind=8) allocatable,dimension(:) :: coscoeffourzrot
+         integer(kind=4) :: degreepolzrot
+         complex(kind=8) allocatable,dimension(:) :: sincoeffourzrot
+         complex(kind=8) :: omegafouryrot
+         integer(kind=4) :: degreefourzrot
+         integer(kind=4) :: degreefourmach
+         integer(kind=4) :: degreefouralpha
+         complex(kind=8) allocatable,dimension(:) :: coefpolalpha
+         complex(kind=8) :: omegafourxrot
+         integer(kind=4) :: degreepolyrot
+         complex(kind=8) allocatable,dimension(:) :: sincoeffourxrot
+         complex(kind=8) allocatable,dimension(:) :: sincoeffouryrot
+         integer(kind=4) :: degreepolxrot
+         complex(kind=8) allocatable,dimension(:) :: coefpolxrot
+         complex(kind=8) allocatable,dimension(:) :: coefpolbeta
+       end module inputmotion
+
+       module inputparallel ! in :adflow:../../modules/inputParam.f90
+         complex(kind=8) :: loadimbalance
+         logical :: splitblocks
+         integer(kind=4) :: loadbalanceiter
+         integer(kind=4) :: partitionlikenproc
+       end module inputparallel
+
+       module inputphysics ! in :adflow:../../modules/inputParam.f90
+         use precision
+
+         integer(kind=4) :: equations
+         integer(kind=4) :: equationmode
+         integer(kind=4) :: flowtype
+         integer(kind=4) :: turbmodel
+         integer(kind=4) :: cpmodel
+         integer(kind=4) :: turbprod
+         integer(kind=4) :: rvfn
+         logical :: rvfb
+         logical :: useqcr
+         logical :: userotationsa
+         logical :: useft2sa
+         logical :: wallfunctions
+         complex(kind=8) :: mach
+         complex(kind=8) :: machcoef
+         complex(kind=8) :: machgrid
+         complex(kind=8) :: reynolds
+         complex(kind=8) :: reynoldslength
+         complex(kind=8) :: gammaconstant
+         complex(kind=8) :: rgasdim
+         complex(kind=8) :: prandtl
+         complex(kind=8) :: prandtlturb
+         complex(kind=8) :: pklim
+         complex(kind=8) :: walloffset
+         complex(kind=8) :: eddyvisinfratio
+         complex(kind=8) :: turbintensityinf
+         complex(kind=8) :: surfaceref
+         complex(kind=8) :: lengthref
+         complex(kind=8) dimension(3) :: veldirfreestream
+         complex(kind=8) dimension(3) :: liftdirection
+         complex(kind=8) dimension(3) :: dragdirection
+         complex(kind=8) dimension(3) :: pointref
+         complex(kind=8) dimension(3) :: pointrefec
+         complex(kind=8) dimension(3,2) :: momentaxis
+         logical :: forcesastractions
+         complex(kind=8) :: ssuthdim
+         complex(kind=8) :: musuthdim
+         complex(kind=8) :: tsuthdim
+         complex(kind=8) :: walldistcutoff
+         complex(kind=8) :: alpha
+         complex(kind=8) :: beta
+         integer(kind=4) :: liftindex
+         complex(kind=8) :: cavitationnumber
+         complex(kind=8) :: cpmin_rho
+         complex(kind=8) :: sepsenmaxrho
+       end module inputphysics
+
+       module inputadjoint ! in :adflow:../modules/inputParam.f90
+         use constants
+         character(len=maxstringlen) :: adjointpcside
+         character(len=maxstringlen) :: matrixordering
+         character(len=maxstringlen) :: adjointsolvertype
+         character(len=maxstringlen) :: gmresorthogtype
+         character(len=maxstringlen) :: localpctype
+         character(len=maxstringlen) :: precondtype
+         real(kind=8) :: adjabstol
+         real(kind=8) :: adjdivtol
+         real(kind=8) :: adjreltol
+         real(kind=8) :: adjreltolrel
+         complex(kind=8) :: adjmaxl2dev
+         integer(kind=4) :: overlap
+         integer(kind=4) :: adjmonstep
+         integer(kind=4) :: filllevel
+         integer(kind=4) :: adjmaxiter
+         integer(kind=4) :: adjrestart
+         integer(kind=4) :: innerpreconits
+         integer(kind=4) :: outerpreconits
+         integer(kind=4) :: adjamglevels
+         integer(kind=4) :: adjamgnsmooth
+         logical :: approxpc
+         logical :: adpc
+         logical :: viscpc
+         logical :: frozenturbulence
+         logical :: usediagtspc
+         logical :: setmonitor
+         logical :: printtiming
+         logical :: firstrun
+         logical :: verifystate
+         logical :: verifyspatial
+         logical :: verifyextra
+         logical :: usematrixfreedrdw
+         integer(kind=4) :: applyadjointpcsubspacesize
+       end module inputadjoint
+
+       module inputtimespectral ! in :adflow:../../modules/inputParam.f90
+         use precision
+         integer(kind=4) :: ntimeintervalsspectral
+         complex(kind=8) allocatable,dimension(:,:,:) :: dscalar
+         complex(kind=8) allocatable,dimension(:,:,:) :: dvector
+         complex(kind=8) :: dtunsteadyrestartspectral
+         logical :: usetsinterpolatedgridvelocity
+         logical :: writeunsteadyrestartspectral
+         integer(kind=4) :: nunsteadysolspectral
+         logical :: writeunsteadyvolspectral
+         logical :: writeunsteadysurfspectral
+         complex(kind=8) allocatable,dimension(:,:,:) :: rotmatrixspectral
+         complex(kind=8) :: omegafourier
+       end module inputtimespectral
+       module inputoverset
+         logical :: useoversetloadbalance
+         complex(kind=8) :: nearwalldist
+         complex(kind=8) :: backgroundvolscale
+         complex(kind=8) :: oversetprojtol
+         complex(kind=8) :: overlapfactor
+         integer(kind=4) :: oversetupdatemode
+         integer(kind=4)::nrefine
+         integer(kind=4)::nflooditer
+         logical :: debugzipper
+         logical :: usezippermesh
+         logical :: useoversetwallscaling
+         logical :: recomputeoverlapmatrix
+         logical :: oversetdebugprint
+         complex(kind=8) :: selfzipcutoff
+       end module inputoverset
+
+       module inputunsteady ! in :test:inputParam.f90
+         use accuracy
+         complex(kind=8) :: deltat
+         logical :: useale
+         integer(kind=4) :: timeintegrationscheme
+         logical :: updatewalldistanceunsteady
+         integer(kind=4) :: timeaccuracy
+         integer(kind=4) :: ntimestepsfine
+         integer(kind=4) :: ntimestepscoarse
+       end module inputunsteady
+
+       module iteration ! in :adflow:../../modules/iteration.f90
+         use precision
+         integer(kind=4) :: groundlevel
+         integer(kind=4) :: currentlevel
+         integer(kind=4) :: rkstage
+         integer(kind=4) :: nstepscycling
+         integer(kind=4) allocatable,dimension(:) :: cycling
+         integer(kind=4) :: itertot
+         integer(kind=4) :: approxtotalits
+         complex(kind=8) :: rfil
+         complex(kind=8) :: t0solver
+         logical :: converged
+         logical :: exchangepressureearly
+         logical :: standalonemode
+         logical :: changing_grid
+         logical :: deforming_grid
+         logical :: changingoverset
+         integer(kind=4) :: noldsolavail
+         integer(kind=4) :: noldlevels
+         complex(kind=8) allocatable,dimension(:) :: coeftime
+         logical :: timespectralgridsnotwritten
+         logical, dimension(:), allocatable :: oldsolwritten
+         complex(kind=8) :: totalr0
+         complex(kind=8) :: totalrstart
+         complex(kind=8) :: totalrfinal
+       end module iteration
+
+       module monitor ! in :adflow:../../modules/monitor.f90
+         use constants
+         integer :: nmonsum
+         integer :: nmonmax
+         integer :: nmon
+         complex(kind=8) allocatable,dimension(:) :: monloc
+         complex(kind=8) allocatable,dimension(:) :: monglob
+         complex(kind=8) allocatable,dimension(:) :: monref
+         character(len=32) allocatable,dimension(:) :: monnames
+         logical :: monmachorhmax
+         logical :: showcpu
+         logical :: monmasssliding
+         logical :: monmassfamilies
+         complex(kind=8) allocatable,dimension(:,:,:) :: convarray
+         complex(kind=8) allocatable,dimension(:,:,:) :: solverdataarray
+         integer(kind=4) :: ntimestepsrestart
+         integer(kind=4) :: timestepunsteady
+         complex(kind=8) :: timeunsteady
+         complex(kind=8) :: timeunsteadyrestart
+         complex(kind=8) allocatable,dimension(:) :: timearray
+         complex(kind=8) allocatable,dimension(:,:) :: timedataarray
+         logical :: writegrid
+         logical :: writevolume
+         logical :: writesurface
+         logical :: writesoleachiter
+       end module monitor
+
+       module block ! in :adflow:../../modules/block.f90
+         use constants
+         integer(kind=4) :: ndom
+         integer(kind=4) allocatable,dimension(:) :: ncellglobal
+       end module block
+
+       module flowvarrefstate ! in :adflow:../../modules/flowVarRefState.f90
+         use constants
+         integer(kind=4) :: nw
+         integer(kind=4) :: nwf
+         integer(kind=4) :: nwt
+         integer(kind=4) :: nt1
+         integer(kind=4) :: nt2
+         complex(kind=8) :: pref
+         complex(kind=8) :: rhoref
+         complex(kind=8) :: tref
+         complex(kind=8) :: muref
+         complex(kind=8) :: timeref
+         complex(kind=8) :: lref
+         logical :: lrefspecified
+         complex(kind=8) :: pinfdim
+         complex(kind=8) :: rhoinfdim
+         complex(kind=8) :: tinfdim
+         complex(kind=8) :: mudim
+         complex(kind=8) :: rhoinf
+         complex(kind=8) :: uinf
+         complex(kind=8) :: pinf
+         complex(kind=8) :: pinfcorr
+         complex(kind=8) :: rgas
+         complex(kind=8) :: muinf
+         complex(kind=8) :: gammainf
+         complex(kind=8) allocatable,dimension(:) :: winf
+         logical :: kpresent
+         logical :: eddymodel
+         logical :: viscous
+       end module flowvarrefstate
+
+       module killsignals ! in :adflow:../../modules/killSignals.f90
+         use precision
+         logical :: frompython
+         logical :: routinefailed
+         logical :: fatalfail
+         logical :: adjointfailed
+       end module killsignals
+
+       module inputcostfunctions ! in :test:costFunctions.F90
+         use constants
+         logical::computesepsensorks
+         complex(kind=8) sepsensoroffset
+         complex(kind=8) sepsensorksoffset
+         complex(kind=8) sepsensorsharpness
+         complex(kind=8) sepsensorkssharpness
+         complex(kind=8) sepsensorksphi
+         complex(kind=8) cavsensoroffset
+         complex(kind=8) cavsensorsharpness
+         integer(kind=4) cavexponent
+         logical::computecavitation
+       end module inputcostfunctions
+
+       module adjointvars ! in :test:ADjointVars.F90
+         use constants
+            integer(kind=4) dimension(20) :: ncellslocal
+            integer(kind=4) dimension(20) :: ncellsglobal
+            integer(kind=4) dimension(20) :: nnodeslocal
+            integer(kind=4), parameter,optional :: ialpha=1
+            integer(kind=4), parameter,optional :: ibeta=2
+            integer(kind=4), parameter,optional :: imach=3
+            integer(kind=4), parameter,optional :: imachgrid=4
+            integer(kind=4), parameter,optional :: irotx=5
+            integer(kind=4), parameter,optional :: iroty=6
+            integer(kind=4), parameter,optional :: irotz=7
+            integer(kind=4), parameter,optional :: irotcenx=8
+            integer(kind=4), parameter,optional :: irotceny=9
+            integer(kind=4), parameter,optional :: irotcenz=10
+            integer(kind=4), parameter,optional :: ipointrefx=11
+            integer(kind=4), parameter,optional :: ipointrefy=12
+            integer(kind=4), parameter,optional :: ipointrefz=13
+            integer(kind=4), parameter,optional :: ipressure=14
+            integer(kind=4), parameter,optional :: itemperature=15
+            integer(kind=4), parameter,optional :: idensity=16
+            integer(kind=4), parameter,optional :: iaxisx1=17
+            integer(kind=4), parameter,optional :: iaxisx2=18
+            integer(kind=4), parameter,optional :: iaxisy1=19
+            integer(kind=4), parameter,optional :: iaxisy2=20
+            integer(kind=4), parameter,optional :: iaxisz1=21
+            integer(kind=4), parameter,optional :: iaxisz2=22
+            integer(kind=4), parameter,optional :: ndesignextra=22
+          end module adjointvars
+
+       module adjointpetsc
+         real(kind=8) :: adjresinit, adjresstart, adjresfinal
+       end module adjointpetsc
+
+       module inputtsstabderiv ! in :test:inputParam.f90
+         logical :: usewindaxis
+         logical :: tsrmode
+         logical :: tsstability
+         logical :: tsbetamode
+         logical :: tsmachmode
+         logical :: tsaltitudemode
+         logical :: tspmode
+         logical :: tsqmode
+         logical :: tsalphamode
+         logical :: tsalphafollowing
+       end module inputtsstabderiv
+
+        module surfacefamilies ! in :test:inputParam.F90
+          subroutine getnfam(nfam) ! in :test:surfaceFamilies.F90:surfacefamilies
+            integer(kind=4) intent(out) :: nfam
+          end subroutine getnfam
+          subroutine getfam(i,fam) ! in :test:surfaceFamilies.F90:surfacefamilies
+            integer(kind=4) intent(in) :: i
+            character(32) intent(out) :: fam
+          end subroutine getfam
+        end module surfacefamilies
+
+! ================ bare subroutines =============
+
+        subroutine writesol(famlist,nfamlist) ! in :test:writeSol.F90
+            integer(kind=4) dimension(nfamlist),intent(in) :: famlist
+            integer(kind=4), optional,intent(in),check(len(famlist)>=nfamlist),depend(famlist) :: nfamlist=len(famlist)
+        end subroutine writesol
+
+        subroutine getforces(forces,npts,sps) ! in :test:getForces.F90
+          complex(kind=8) dimension(3,npts),intent(inout) :: forces
+          integer(kind=4), optional,intent(in),check(shape(forces,1)==npts),depend(forces) :: npts=shape(forces,1)
+          integer(kind=4) intent(in) :: sps
+        end subroutine getforces
+
+       subroutine getheatflux(hflux,npts,sps_in) ! in :test:getForces.F90
+         complex(kind=8) dimension(npts),intent(inout) :: hflux
+         integer(kind=4), optional,intent(in),depend(hflux) :: npts=len(hflux)
+         integer(kind=4) intent(in) :: sps_in
+       end subroutine getheatflux
+
+       subroutine settnswall(tnsw,npts,sps_in) ! in :test:getForces.F90
+         complex(kind=8) dimension(npts),intent(in) :: tnsw
+         integer(kind=4) optional,intent(in),check(len(tnsw)>=npts),depend(tnsw) :: npts=len(tnsw)
+         integer(kind=4) intent(in) :: sps_in
+       end subroutine settnswall
+
+       subroutine gettnswall(tnsw,npts,sps) ! in :test:getForces.F90
+         complex(kind=8) dimension(npts),intent(out),depend(npts) :: tnsw
+         integer(kind=4) intent(in) :: npts
+         integer(kind=4) intent(in) :: sps
+       end subroutine gettnswall
+
+       subroutine setcptargets(cptarget,npts,sps_in) ! in :test:setCpTarget.f90
+         complex(kind=8) dimension(npts),intent(in) :: cptarget
+         integer(kind=4) optional,intent(in),check(len(cptarget)>=npts),depend(cptarget) :: npts=len(cptarget)
+         integer(kind=4) intent(in) :: sps_in
+       end subroutine setcptargets
+
+       subroutine getcptargets(cptarget,npts,sps) ! in :test:getForces.F90
+         complex(kind=8) dimension(npts),intent(out),depend(npts) :: cptarget
+         integer(kind=4) intent(in) :: npts
+         integer(kind=4) intent(in) :: sps
+       end subroutine getcptargets
+
+       subroutine getareas(areas,pts,npts,sps_in,axis) ! in :test:getAreas.f90
+         complex(kind=8) dimension(3,npts),intent(out),depend(npts) :: areas
+         complex(kind=8) dimension(3,npts),intent(in) :: pts
+         integer(kind=4) optional,intent(in),check(shape(pts,1)==npts),depend(pts) :: npts=shape(pts,1)
+         integer(kind=4) intent(in) :: sps_in
+         complex(kind=8) dimension(3),intent(in) :: axis
+       end subroutine getareas
+
+       subroutine getareasensitivity(darea,pts,npts,sps_in,axis) ! in :test:getAreas.f90
+         complex(kind=8) dimension(3,npts),intent(out),depend(npts) :: darea
+         complex(kind=8) dimension(3,npts),intent(in) :: pts
+         integer(kind=4) optional,intent(in),check(shape(pts,1)==npts),depend(pts) :: npts=shape(pts,1)
+         integer(kind=4) intent(in) :: sps_in
+         complex(kind=8) dimension(3),intent(in) :: axis
+       end subroutine getareasensitivity
+
+
+    end interface
+
+end python module libadflow_cs
