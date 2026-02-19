@@ -1,43 +1,43 @@
-# ADflow — Turbulence Calibration Edition
+# ADflow — 湍流模型系数校准版
 
-Modified version of [MDO Lab ADflow](https://github.com/mdolab/adflow) with **runtime-modifiable SA and SST turbulence closure coefficients** for Bayesian calibration and uncertainty quantification.
+基于 [MDO Lab ADflow](https://github.com/mdolab/adflow) 的修改版本，支持 **SA 和 SST 湍流模型闭合系数的运行时修改**，用于贝叶斯校准与不确定性量化研究。
 
-## What's Changed
+## 修改内容
 
-The original ADflow declares SA and SST closure coefficients as Fortran `parameter` (compile-time constants), making them immutable at runtime. This fork removes the `parameter` attribute and exposes all coefficients through the f2py Python interface.
+原版 ADflow 将 SA 和 SST 闭合系数声明为 Fortran `parameter`（编译期常量），运行时不可修改。本分支移除了 `parameter` 属性，并通过 f2py Python 接口暴露全部系数。
 
-### Modified Files (3 files)
+### 修改文件（3 个）
 
-| File | Change |
-|------|--------|
-| `src/modules/paramTurb.F90` | SA + SST constants made mutable; added 4 setter subroutines |
-| `src/f2py/adflow.pyf` | Added `paramturb` module: 22 variables + 4 subroutines |
-| `src/initFlow/initializeFlow.F90` | Added `setSADefaults()` and `setSSTDefaults()` initialization calls |
+| 文件 | 修改内容 |
+|------|----------|
+| `src/modules/paramTurb.F90` | SA + SST 常数改为可变；新增 4 个 setter 子程序 |
+| `src/f2py/adflow.pyf` | 新增 `paramturb` 模块：22 个变量 + 4 个子程序 |
+| `src/initFlow/initializeFlow.F90` | 新增 `setSADefaults()` 和 `setSSTDefaults()` 初始化调用 |
 
-### Exposed Variables
+### 暴露的变量
 
-**SA model** — 13 variables (9 calibration + 4 auxiliary):
+**SA 模型** — 13 个变量（9 个校准参数 + 4 个辅助参数）：
 
-| Variable | Parameter | Default | Note |
-|----------|-----------|---------|------|
-| `rsacb1` | c_b1 | 0.1355 | Production coefficient |
-| `rsacb2` | c_b2 | 0.622 | Diffusion coefficient |
-| `rsacb3` | **sigma** | 0.6667 | **Naming trap: stores sigma (=2/3), NOT c_b3** |
-| `rsak` | kappa | 0.41 | von Karman constant |
-| `rsacv1` | c_v1 | 7.1 | Wall damping |
-| `rsacw1` | c_w1 | 3.2391 | Derived: cb1/k^2 + (1+cb2)/sigma |
-| `rsacw2` | c_w2 | 0.3 | Destruction coefficient |
-| `rsacw3` | c_w3 | 2.0 | Destruction coefficient |
-| `rsact1` | c_t1 | 1.0 | Trip function |
-| `rsact2` | c_t2 | 2.0 | Trip function |
-| `rsact3` | c_t3 | 1.2 | Trip function |
-| `rsact4` | c_t4 | 0.5 | Trip function |
-| `rsacrot` | c_rot | 2.0 | Rotation correction |
+| 变量名 | 参数 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `rsacb1` | c_b1 | 0.1355 | 产生项系数 |
+| `rsacb2` | c_b2 | 0.622 | 扩散项系数 |
+| `rsacb3` | **sigma** | 0.6667 | **注意：存储的是 sigma (=2/3)，不是 c_b3** |
+| `rsak` | kappa | 0.41 | von Karman 常数 |
+| `rsacv1` | c_v1 | 7.1 | 壁面阻尼系数 |
+| `rsacw1` | c_w1 | 3.2391 | 派生量：cb1/k² + (1+cb2)/sigma |
+| `rsacw2` | c_w2 | 0.3 | 耗散项系数 |
+| `rsacw3` | c_w3 | 2.0 | 耗散项系数 |
+| `rsact1` | c_t1 | 1.0 | 转捩函数 |
+| `rsact2` | c_t2 | 2.0 | 转捩函数 |
+| `rsact3` | c_t3 | 1.2 | 转捩函数 |
+| `rsact4` | c_t4 | 0.5 | 转捩函数 |
+| `rsacrot` | c_rot | 2.0 | 旋转修正 |
 
-**SST model** — 9 independent variables:
+**SST 模型** — 9 个独立变量：
 
-| Variable | Parameter | Default |
-|----------|-----------|---------|
+| 变量名 | 参数 | 默认值 |
+|--------|------|--------|
 | `rsstk` | kappa | 0.41 |
 | `rssta1` | a1 | 0.31 |
 | `rsstbetas` | beta* | 0.09 |
@@ -48,16 +48,16 @@ The original ADflow declares SA and SST closure coefficients as Fortran `paramet
 | `rsstsigw2` | sigma_w2 | 0.856 |
 | `rsstbeta2` | beta_2 | 0.0828 |
 
-### Subroutines
+### 子程序
 
-| Subroutine | Description |
-|------------|-------------|
-| `setsadefaults()` | Reset all 13 SA variables to defaults |
-| `setsaconstants(cb1, cb2, sigma, kappa, cv1, cw2, cw3, ct3, ct4)` | Set 9 SA parameters, auto-recompute c_w1 |
-| `setsstdefaults()` | Reset all 9 SST variables to defaults |
-| `setsstconstants(sstk, a1, betas, sigk1, sigw1, beta1, sigk2, sigw2, beta2)` | Set 9 SST parameters |
+| 子程序 | 说明 |
+|--------|------|
+| `setsadefaults()` | 重置全部 13 个 SA 变量为默认值 |
+| `setsaconstants(cb1, cb2, sigma, kappa, cv1, cw2, cw3, ct3, ct4)` | 设置 9 个 SA 校准参数，自动重算 c_w1 |
+| `setsstdefaults()` | 重置全部 9 个 SST 变量为默认值 |
+| `setsstconstants(sstk, a1, betas, sigk1, sigw1, beta1, sigk2, sigw2, beta2)` | 设置 9 个 SST 参数 |
 
-## Usage
+## 使用方法
 
 ```python
 from adflow import ADFLOW
@@ -65,11 +65,11 @@ from adflow import ADFLOW
 solver = ADFLOW(options=aeroOptions)
 pt = solver.adflow.paramturb
 
-# --- SA: set 9 calibration parameters (c_w1 auto-recomputed) ---
+# --- SA: 设置 9 个校准参数 (c_w1 自动重算) ---
 pt.setsaconstants(
     0.1355,    # cb1
     0.622,     # cb2
-    2.0/3.0,   # sigma (stored as rsacb3)
+    2.0/3.0,   # sigma (存储在 rsacb3 中)
     0.41,      # kappa
     7.1,       # cv1
     0.3,       # cw2
@@ -78,7 +78,7 @@ pt.setsaconstants(
     0.5        # ct4
 )
 
-# --- SST: set 9 independent parameters ---
+# --- SST: 设置 9 个独立参数 ---
 pt.setsstconstants(
     0.41,      # sstk
     0.31,      # a1
@@ -91,33 +91,33 @@ pt.setsstconstants(
     0.0828     # beta2
 )
 
-# --- Or set individually ---
+# --- 也可单独设置 ---
 pt.rsacw2 = 0.055       # SA
 pt.rsstbeta1 = 0.06     # SST
 ```
 
-## Pre-built Binary
+## 预编译二进制
 
-A pre-compiled `libadflow.so` is included in `adflow/libadflow.so`, built with:
-- Docker image: `mdolab/public:u22-gcc-ompi-stable`
+仓库中包含预编译的 `libadflow.so`（位于 `adflow/libadflow.so`），构建环境：
+- Docker 镜像：`mdolab/public:u22-gcc-ompi-stable`
 - Ubuntu 22.04, GCC, OpenMPI
 
-To use the pre-built binary, the runtime environment must match the build environment (same OS, MPI, and Python version as the MDO Lab Docker image).
+使用预编译二进制时，运行环境必须与构建环境一致（与 MDO Lab Docker 镜像相同的操作系统、MPI 和 Python 版本）。
 
-## Building from Source
+## 从源码构建
 
-### Using the patch script
+### 使用补丁脚本
 
-If you have the original ADflow source:
+如果已有原版 ADflow 源码：
 
 ```bash
-python patch_adflow_turb.py   # Patches 3 source files (idempotent)
+python patch_adflow_turb.py   # 补丁 3 个源文件（幂等操作）
 cd /path/to/adflow
 make clean && make
 pip install -e .
 ```
 
-### Using this repository directly
+### 直接使用本仓库
 
 ```bash
 git clone https://github.com/bominwang/adflow-turb-calibration.git
@@ -126,9 +126,11 @@ make clean && make
 pip install -e .
 ```
 
-## Validation
+## 验证
 
-All 7 tests pass:
+### 单元测试
+
+全部 7 项测试通过：
 
 ```
 discover            : PASS   (22 variables + 4 subroutines)
@@ -140,10 +142,38 @@ sa_setter           : PASS   (9 params + c_w1 auto-recompute)
 sst_setter          : PASS   (9 params)
 ```
 
-## Upstream
+### NACA 0012 算例验证
 
-Based on [mdolab/adflow](https://github.com/mdolab/adflow) v2.12.1.
+在 NACA 0012 翼型上进行了系数敏感性验证（M=0.75, α=1.5°, 海拔 10000 m）。每个湍流模型运行 4 组算例：1 组默认系数 + 3 组随机采样系数，提取表面压力系数 (Cp) 分布进行对比。
 
-## License
+**SA 模型**（7 个校准参数独立采样，ct3/ct4 保持默认）：
 
-Same as upstream: GNU Lesser General Public License (LGPL), version 2.1. See [LICENSE.md](LICENSE.md).
+| 算例 | Cl | Cd |
+|------|--------|---------|
+| default | 0.2867 | 0.01326 |
+| random_1 | 0.2864 | 0.01324 |
+| random_2 | 0.2891 | 0.01324 |
+| random_3 | 0.2882 | 0.01253 |
+
+![SA Cp 对比](doc/naca0012_sa_cp_compare.png)
+
+**SST 模型**（9 个校准参数全部独立采样）：
+
+| 算例 | Cl | Cd |
+|------|--------|---------|
+| default | 0.2942 | 0.01789 |
+| random_1 | 0.2965 | 0.01667 |
+| random_2 | 0.2960 | 0.01435 |
+| random_3 | 0.2886 | 0.01727 |
+
+![SST Cp 对比](doc/naca0012_sst_cp_compare.png)
+
+算例脚本位于 `examples/NACA0012/` 目录下。
+
+## 上游版本
+
+基于 [mdolab/adflow](https://github.com/mdolab/adflow) v2.12.1。
+
+## 许可证
+
+与上游一致：GNU Lesser General Public License (LGPL), version 2.1。详见 [LICENSE.md](LICENSE.md)。
