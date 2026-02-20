@@ -325,9 +325,9 @@ SST 模型验证同理：
 mpirun --oversubscribe -np 2 python3 run_naca0012_sst_verify.py
 ```
 
-### 超算部署
+### 超算部署 (方式 A: Singularity 容器)
 
-在无法直接使用 Docker 的 HPC 环境中，可构建 Singularity/Apptainer 镜像：
+在支持 Singularity/Apptainer 的 HPC 上，可直接从 Docker 镜像转换：
 
 ```bash
 # 方法 1: 直接从 Docker 镜像转换
@@ -349,6 +349,119 @@ RUN python3 /tmp/patch_adflow_turb.py \
     && make clean && make \
     && pip install -e .
 ```
+
+### 超算部署 (方式 B: 原生编译)
+
+在不支持 Docker/Singularity 的 HPC 上，需要从源码编译完整工具链。
+
+> **编译器要求: 必须使用 GCC gfortran。** Intel ifort 存在已知 bug，导致系数修改不生效（详见下方"已知问题"）。
+
+#### 1. 编译 PETSc
+
+```bash
+# 下载 PETSc 3.15.x 源码
+# 如果 HPC 无法访问外网，需提前下载依赖包 (superlu_dist, sowing 等)
+
+cd /path/to/petsc-3.15.5
+./configure \
+    --prefix=/path/to/petsc-install \
+    --with-cc=mpicc --with-cxx=mpicxx --with-fc=mpifort \
+    --with-shared-libraries=1 \
+    --with-fortran-bindings=0 \
+    --with-debugging=0 \
+    --download-superlu_dist=/path/to/local/superlu_dist.tar.gz \
+    COPTFLAGS="-O2" CXXOPTFLAGS="-O2" FOPTFLAGS="-O2"
+
+make all
+make install
+
+export PETSC_DIR=/path/to/petsc-install
+export PETSC_ARCH=""
+```
+
+#### 2. 编译 CGNS
+
+```bash
+# 下载 CGNS 4.2.0 源码
+# 使用 cmake 或手动编译
+
+cd /path/to/CGNS-4.2.0
+mkdir build && cd build
+cmake .. -DCMAKE_INSTALL_PREFIX=/path/to/cgns-install \
+         -DCGNS_ENABLE_FORTRAN=ON \
+         -DCGNS_BUILD_SHARED=OFF \
+         -DCMAKE_C_COMPILER=gcc \
+         -DCMAKE_Fortran_COMPILER=gfortran
+
+make && make install
+export CGNS_HOME=/path/to/cgns-install
+```
+
+> 如果 HPC 的 cmake 版本过旧 (< 3.8)，可手动编译 CGNS C 和 Fortran 源文件并打包为 `libcgns.a`。
+
+#### 3. 编译 ADflow
+
+```bash
+# 克隆本仓库
+git clone https://github.com/bominwang/adflow-turb-calibration.git
+cd adflow-turb-calibration
+
+# 运行补丁
+python3 patch_adflow_turb.py
+
+# 编写 config/config.mk (根据你的 HPC 环境调整路径)
+cat > config/config.mk << 'EOF'
+FF90 = mpifort
+CC   = mpicc
+
+FF77_FLAGS = -fPIC -fdefault-real-8 -fdefault-double-8 -g -O2 -fallow-argument-mismatch
+FF90_FLAGS = $(FF77_FLAGS) -std=f2008
+FFXX_OPT_FLAGS = -O2
+C_FLAGS   = -fPIC -O2 -std=c99
+
+FF90_COMPILER_FLAGS = -cpp
+
+# 注意: 如果 HPC 的 conda 环境中有其他版本的 GCC/MPI，
+# 建议使用绝对路径避免冲突，例如:
+# FF90 = /path/to/openmpi/bin/mpifort
+# CC   = /path/to/openmpi/bin/mpicc
+EOF
+
+# 编译
+make clean && make
+
+# 安装 (如果 HPC 有外网)
+pip install -e .
+
+# 如果 HPC 无外网，使用 PYTHONPATH + symlink 替代:
+ln -sf ../src/build/libadflow.so adflow/libadflow.so
+export PYTHONPATH=/path/to/adflow-turb-calibration:$PYTHONPATH
+```
+
+#### 4. 验证
+
+```python
+python3 -c "
+from adflow.libadflow import paramturb as pt
+print('cb1 =', pt.rsacb1, '(expect 0.1355)')
+print('sstk =', pt.rsstk, '(expect 0.41)')
+pt.setsaconstants(0.5, 0.622, 2.0/3.0, 0.41, 7.1, 0.3, 2.0, 1.2, 0.5)
+print('cb1 after set =', pt.rsacb1, '(expect 0.5)')
+pt.setsadefaults()
+print('cb1 after reset =', pt.rsacb1, '(expect 0.1355)')
+print('ALL OK')
+"
+```
+
+#### HPC 编译常见问题
+
+| 问题 | 原因 | 解决方案 |
+|------|------|----------|
+| `cgns.mod: Unexpected EOF` | `.mod` 文件由 Intel 编译，GCC 不兼容 | 用 GCC 重新编译 CGNS Fortran 模块 |
+| `u_int64_t` 未定义 | `adStack.c` 使用了非标准类型 | `#include <stdint.h>` 并替换为 `uint64_t` |
+| `__intel_sse2_*` 符号未定义 | CGNS 静态库含 Intel 编译的 C 对象 | 用 GCC 重新编译 CGNS 所有 C 源文件 |
+| conda MPI 库冲突 | conda 中的 OpenMPI 5.x 覆盖系统 4.x | 使用 `LD_PRELOAD` 或编译器绝对路径 |
+| `pip install` 失败 (无外网) | HPC 无法下载 setuptools | 用 `PYTHONPATH` + symlink 替代 |
 
 ## 验证
 
@@ -393,6 +506,26 @@ sst_setter          : PASS   (9 params)
 ![SST Cp 对比](doc/naca0012_sst_cp_compare.png)
 
 算例脚本位于 `examples/NACA0012/` 目录下。
+
+## 已知问题
+
+### Intel ifort 编译器不兼容
+
+**Intel ifort (包括 Intel oneAPI ifx) 编译的 ADflow 无法正确进行系数校准。**
+
+**症状**: 通过 f2py 修改 SA/SST 闭合系数后，CFD 计算结果完全不变（CL/CD 差异严格为 0）。
+
+**根因**: Intel ifort 在将 Fortran `.a` 静态库链接到 `.so` 共享库时，会为 module 数据创建**两个独立的内存副本**。f2py Python 接口修改的是副本 A，而 Fortran 计算子程序读取的是副本 B。两者互不影响。
+
+**验证方法**: A/B 测试 — 用默认 cb1=0.1355 和修改后 cb1=0.5 分别运行同一算例，比较 CL/CD:
+- Intel ifort: CL 差异 = 0, CD 差异 = 0 (bug)
+- GCC gfortran: CL 差异 = 1.16e-02, CD 差异 = 2.70e-01 (正确)
+
+**解决方案**: 使用 GCC gfortran 编译。GCC 正确处理共享库中的 module 数据引用。
+
+### CGNS HDF5 格式
+
+如果 CGNS 编译时未链接 HDF5 库，只能读取 ADF 格式的 CGNS 文件。建议编译 CGNS 时加上 `-DCGNS_ENABLE_HDF5=ON` 并提供 HDF5 路径。
 
 ## 上游版本
 
