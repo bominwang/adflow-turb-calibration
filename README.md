@@ -6,13 +6,15 @@
 
 原版 ADflow 将 SA 和 SST 闭合系数声明为 Fortran `parameter`（编译期常量），运行时不可修改。本分支移除了 `parameter` 属性，并通过 f2py Python 接口暴露全部系数。
 
-### 修改文件（3 个）
+### 修改文件（5 个）
 
 | 文件 | 修改内容 |
 |------|----------|
 | `src/modules/paramTurb.F90` | SA + SST 常数改为可变；新增 4 个 setter 子程序 |
 | `src/f2py/adflow.pyf` | 新增 `paramturb` 模块：22 个变量 + 4 个子程序 |
-| `src/initFlow/initializeFlow.F90` | 新增 `setSADefaults()` 和 `setSSTDefaults()` 初始化调用 |
+| `src/initFlow/initializeFlow.F90` | 确保 `referenceState` 中不调用 setter（避免覆盖用户系数） |
+| `src/turbulence/SST.F90` | f1 混合函数中硬编码 0.09 替换为 `rSSTBetas` |
+| `src/turbulence/turbUtils.F90` | 涡粘计算中硬编码 0.09 替换为 `rSSTBetas` |
 
 ### 暴露的变量
 
@@ -96,34 +98,256 @@ pt.rsacw2 = 0.055       # SA
 pt.rsstbeta1 = 0.06     # SST
 ```
 
-## 预编译二进制
+## 构建与部署
 
-仓库中包含预编译的 `libadflow.so`（位于 `adflow/libadflow.so`），构建环境：
-- Docker 镜像：`mdolab/public:u22-gcc-ompi-stable`
-- Ubuntu 22.04, GCC, OpenMPI
+本仓库**不提供预编译二进制**。正确的使用方式是：在已有 ADflow 编译环境中，用 `patch_adflow_turb.py` 补丁原版源码后重新编译。
 
-使用预编译二进制时，运行环境必须与构建环境一致（与 MDO Lab Docker 镜像相同的操作系统、MPI 和 Python 版本）。
+> **注意**: 仓库中的 `adflow/libadflow.so` 是构建环境的产物，通过 git 克隆可能因行尾转换而损坏。请务必在目标环境中从源码编译。
 
-## 从源码构建
+### 前置条件
 
-### 使用补丁脚本
+- 安装 [Docker Desktop](https://www.docker.com/products/docker-desktop/)，确保已启动
 
-如果已有原版 ADflow 源码：
+### 第一步：拉取 MDO Lab 官方 Docker 镜像
+
+在 Windows PowerShell / CMD / Git Bash 中执行（不是在 Docker 容器内）：
 
 ```bash
-python patch_adflow_turb.py   # 补丁 3 个源文件（幂等操作）
-cd /path/to/adflow
+docker pull mdolab/public:u22-gcc-ompi-stable
+```
+
+镜像约 5 GB，首次拉取需要等待。完成后会看到 `Status: Downloaded newer image` 或 `Status: Image is up to date`。
+
+### 第二步：启动容器
+
+```bash
+docker run -it --name adflow-turb mdolab/public:u22-gcc-ompi-stable bash
+```
+
+成功后终端提示符变为容器内的用户：
+
+```
+mdolabuser@xxxxxxxxxxxx:~$
+```
+
+> **容器管理**：
+> - 退出容器：输入 `exit`
+> - 重新进入已停止的容器：`docker start -i adflow-turb`
+> - 删除容器：`docker rm adflow-turb`
+> - 如果容器名已被占用：换一个名字（如 `adflow-turb2`），或先 `docker rm` 旧容器
+
+以下所有步骤均在容器内执行。
+
+### 第三步：克隆本仓库
+
+```bash
+git clone https://github.com/bominwang/adflow-turb-calibration.git /tmp/repo
+```
+
+预期输出：
+
+```
+Cloning into '/tmp/repo'...
+...
+Receiving objects: 100% ...
+```
+
+### 第四步：运行补丁脚本
+
+```bash
+python3 /tmp/repo/patch_adflow_turb.py
+```
+
+预期输出（5 个文件依次被补丁）：
+
+```
+======================================================================
+Patching ADflow for runtime SA + SST coefficient modification
+======================================================================
+
+[1/5] Patching paramTurb.F90 (SA + SST mutable with initialisers)...
+  Backup: .../paramTurb.F90.bak
+  Patched: .../paramTurb.F90
+
+[2/5] Patching adflow.pyf (f2py interface)...
+  Backup: .../adflow.pyf.bak
+  Patched: .../adflow.pyf
+
+[3/5] Patching initializeFlow.F90 (no setter calls in referenceState)...
+  .../initializeFlow.F90: no setter calls found, OK.
+
+[4/5] Patching SST.F90 (f1 blending: 0.09 -> rSSTBetas)...
+  Patched: .../SST.F90
+
+[5/5] Patching turbUtils.F90 (eddy viscosity: 0.09 -> rSSTBetas)...
+  Patched: .../turbUtils.F90
+
+======================================================================
+Patch complete!
+======================================================================
+```
+
+补丁脚本默认补丁路径为 `/home/mdolabuser/repos/adflow/src`（MDO Lab Docker 镜像中的标准位置）。如需指定其他路径：
+
+```bash
+ADFLOW_SRC=/your/adflow/src python3 /tmp/repo/patch_adflow_turb.py
+```
+
+### 第五步：重新编译 ADflow
+
+```bash
+cd /home/mdolabuser/repos/adflow
 make clean && make
+```
+
+编译过程中会出现一些 `Warning: Type mismatch` 警告，这是 ADflow 原版代码的 CGNS 模块问题，**不影响使用**。只要没有 `Error` 导致编译中断即可。
+
+编译成功的标志是最后几行出现：
+
+```
+Testing if module libadflow can be imported...
+Module libadflow was successfully imported
+```
+
+然后安装 Python 包：
+
+```bash
 pip install -e .
 ```
 
-### 直接使用本仓库
+预期输出：`Successfully installed adflow-2.12.1`
+
+### 第六步：验证安装
+
+#### 快速验证（系数接口）
+
+需要一个网格文件。在 Windows 上**另开一个终端**，将网格复制进容器：
 
 ```bash
-git clone https://github.com/bominwang/adflow-turb-calibration.git
-cd adflow-turb-calibration
-make clean && make
-pip install -e .
+docker cp /path/to/adflow-turb-calibration/examples/NACA0012/mesh/n0012.cgns adflow-turb:/tmp/mesh.cgns
+```
+
+回到容器内终端，运行验证脚本：
+
+```python
+python3 << 'EOF'
+from adflow import ADFLOW
+import os
+os.makedirs("/tmp/output", exist_ok=True)
+
+solver = ADFLOW(options={
+    "gridFile": "/tmp/mesh.cgns",
+    "outputDirectory": "/tmp/output",
+    "equationType": "RANS",
+    "turbulenceModel": "SA",
+    "nCycles": 1,
+})
+pt = solver.adflow.paramturb
+
+# 检查默认值
+print("=== SA defaults ===")
+print(f"cb1={pt.rsacb1:.4f} (expect 0.1355)")
+print(f"cw1={pt.rsacw1:.4f} (expect 3.2391)")
+
+# 修改系数并验证 cw1 自动重算
+pt.setsaconstants(0.14, 0.65, 0.7, 0.40, 7.0, 0.25, 1.8, 1.2, 0.5)
+expected_cw1 = 0.14 / 0.40**2 + (1 + 0.65) / 0.7
+print(f"\n=== After setsaconstants ===")
+print(f"cb1={pt.rsacb1:.4f} (expect 0.14)")
+print(f"cw1={pt.rsacw1:.4f} (expect {expected_cw1:.4f})")
+print(f"cw1 match: {abs(pt.rsacw1 - expected_cw1) < 1e-6}")
+
+# SST 系数
+pt.setsstconstants(0.41, 0.35, 0.085, 0.85, 0.5, 0.075, 1.0, 0.856, 0.0828)
+print(f"\n=== After setsstconstants ===")
+print(f"a1={pt.rssta1:.4f} (expect 0.35)")
+print(f"betas={pt.rsstbetas:.4f} (expect 0.085)")
+print(f"\n=== ALL PASSED ===")
+EOF
+```
+
+**安装正确的预期输出**：
+
+```
+=== SA defaults ===
+cb1=0.1355 (expect 0.1355)
+cw1=3.2391 (expect 3.2391)
+
+=== After setsaconstants ===
+cb1=0.1400 (expect 0.14)
+cw1=3.2321 (expect 3.2321)
+cw1 match: True
+
+=== After setsstconstants ===
+a1=0.3500 (expect 0.35)
+betas=0.0850 (expect 0.085)
+
+=== ALL PASSED ===
+```
+
+如果看到 `ALL PASSED` 和 `cw1 match: True`，说明 SA 和 SST 系数接口全部正常。
+
+#### 完整算例验证（NACA 0012 Cp 分布）
+
+挂载本仓库到容器后，可运行完整的 NACA 0012 验证算例：
+
+```bash
+# 先停止当前容器
+exit
+
+# 重新启动并挂载仓库目录（Windows 路径示例）
+docker run -it --name adflow-turb-full \
+  -v /path/to/adflow-turb-calibration:/workspace/repo \
+  mdolab/public:u22-gcc-ompi-stable bash
+
+# 在容器内重复第三～五步（patch + compile + install）
+python3 /workspace/repo/patch_adflow_turb.py
+cd /home/mdolabuser/repos/adflow && make clean && make && pip install -e .
+
+# 运行 SA 验证（4 组算例：1 默认 + 3 随机系数）
+cd /workspace/repo/examples/NACA0012
+mpirun --oversubscribe -np 2 python3 run_naca0012_sa_verify.py
+```
+
+SA 模型使用默认系数时的预期结果：
+
+| 指标 | 预期值 |
+|------|--------|
+| Cl | ≈ 0.287 |
+| Cd | ≈ 0.013 |
+| 收敛 | ~60 次迭代达到 L2 残差 1e-15 |
+
+如果 4 组算例全部收敛，且不同系数对应的 Cl/Cd 和 Cp 分布有差异，说明系数修改在实际求解中生效。
+
+SST 模型验证同理：
+
+```bash
+mpirun --oversubscribe -np 2 python3 run_naca0012_sst_verify.py
+```
+
+### 超算部署
+
+在无法直接使用 Docker 的 HPC 环境中，可构建 Singularity/Apptainer 镜像：
+
+```bash
+# 方法 1: 直接从 Docker 镜像转换
+singularity pull adflow-turb.sif docker://mdolab/public:u22-gcc-ompi-stable
+
+# 方法 2: 使用 Dockerfile 构建自定义镜像后转换
+docker build -t adflow-turb:latest .
+singularity pull adflow-turb.sif docker-daemon://adflow-turb:latest
+```
+
+Dockerfile 示例：
+
+```dockerfile
+FROM mdolab/public:u22-gcc-ompi-stable
+
+COPY patch_adflow_turb.py /tmp/patch_adflow_turb.py
+RUN python3 /tmp/patch_adflow_turb.py \
+    && cd /home/mdolabuser/repos/adflow \
+    && make clean && make \
+    && pip install -e .
 ```
 
 ## 验证
