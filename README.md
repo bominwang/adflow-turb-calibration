@@ -1,415 +1,203 @@
-# ADflow — 湍流模型系数校准版
+# ADflow — Turbulence Model Coefficient Calibration Fork
 
-基于 [MDO Lab ADflow](https://github.com/mdolab/adflow) 的修改版本，支持 **SA 和 SST 湍流模型闭合系数的运行时修改**，用于贝叶斯校准与不确定性量化研究。
+Based on [MDO Lab ADflow](https://github.com/mdolab/adflow), modified to support **runtime modification of SA and SST turbulence closure coefficients** for Bayesian calibration and uncertainty quantification.
 
-## 修改内容
+## How It Works
 
-原版 ADflow 将 SA 和 SST 闭合系数声明为 Fortran `parameter`（编译期常量），运行时不可修改。本分支移除了 `parameter` 属性，并通过 f2py Python 接口暴露全部系数。
+Original ADflow declares SA and SST closure coefficients as Fortran `parameter` (compile-time constants). This fork:
 
-### 修改文件（5 个）
+1. **Removes `parameter`** from SA and SST coefficients in `paramTurb.F90`, making them mutable module variables with default initial values
+2. **Adds setter subroutines** (`setSAConstants`, `setSSTConstants`, etc.) in Fortran
+3. **Replaces hardcoded constants** (e.g., `0.09` for beta*) with the module variables in `SST.F90` and `turbUtils.F90`
+4. **Provides a Python ctypes API** (`adflow_turb_ctypes.py`) that directly writes to the Fortran symbol addresses in the loaded `libadflow.so`
 
-| 文件 | 修改内容 |
-|------|----------|
-| `src/modules/paramTurb.F90` | SA + SST 常数改为可变；新增 4 个 setter 子程序 |
-| `src/f2py/adflow.pyf` | 新增 `paramturb` 模块：22 个变量 + 4 个子程序 |
-| `src/initFlow/initializeFlow.F90` | 确保 `referenceState` 中不调用 setter（避免覆盖用户系数） |
-| `src/turbulence/SST.F90` | f1 混合函数中硬编码 0.09 替换为 `rSSTBetas` |
-| `src/turbulence/turbUtils.F90` | 涡粘计算中硬编码 0.09 替换为 `rSSTBetas` |
+## Python API
 
-### 暴露的变量
-
-**SA 模型** — 13 个变量（9 个校准参数 + 4 个辅助参数）：
-
-| 变量名 | 参数 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `rsacb1` | c_b1 | 0.1355 | 产生项系数 |
-| `rsacb2` | c_b2 | 0.622 | 扩散项系数 |
-| `rsacb3` | **sigma** | 0.6667 | **注意：存储的是 sigma (=2/3)，不是 c_b3** |
-| `rsak` | kappa | 0.41 | von Karman 常数 |
-| `rsacv1` | c_v1 | 7.1 | 壁面阻尼系数 |
-| `rsacw1` | c_w1 | 3.2391 | 派生量：cb1/k² + (1+cb2)/sigma |
-| `rsacw2` | c_w2 | 0.3 | 耗散项系数 |
-| `rsacw3` | c_w3 | 2.0 | 耗散项系数 |
-| `rsact1` | c_t1 | 1.0 | 转捩函数 |
-| `rsact2` | c_t2 | 2.0 | 转捩函数 |
-| `rsact3` | c_t3 | 1.2 | 转捩函数 |
-| `rsact4` | c_t4 | 0.5 | 转捩函数 |
-| `rsacrot` | c_rot | 2.0 | 旋转修正 |
-
-**SST 模型** — 9 个独立变量：
-
-| 变量名 | 参数 | 默认值 |
-|--------|------|--------|
-| `rsstk` | kappa | 0.41 |
-| `rssta1` | a1 | 0.31 |
-| `rsstbetas` | beta* | 0.09 |
-| `rsstsigk1` | sigma_k1 | 0.85 |
-| `rsstsigw1` | sigma_w1 | 0.5 |
-| `rsstbeta1` | beta_1 | 0.075 |
-| `rsstsigk2` | sigma_k2 | 1.0 |
-| `rsstsigw2` | sigma_w2 | 0.856 |
-| `rsstbeta2` | beta_2 | 0.0828 |
-
-### 子程序
-
-| 子程序 | 说明 |
-|--------|------|
-| `setsadefaults()` | 重置全部 13 个 SA 变量为默认值 |
-| `setsaconstants(cb1, cb2, sigma, kappa, cv1, cw2, cw3, ct3, ct4)` | 设置 9 个 SA 校准参数，自动重算 c_w1 |
-| `setsstdefaults()` | 重置全部 9 个 SST 变量为默认值 |
-| `setsstconstants(sstk, a1, betas, sigk1, sigw1, beta1, sigk2, sigw2, beta2)` | 设置 9 个 SST 参数 |
-
-## 使用方法
+The Python interface uses ctypes to directly access Fortran module symbols, bypassing f2py (see [Known Issues](#known-issues) for why).
 
 ```python
 from adflow import ADFLOW
+from adflow_turb_ctypes import (
+    set_sa_constants, set_sa_defaults, get_sa_constants,
+    set_sst_constants, set_sst_defaults, get_sst_constants,
+)
 
 solver = ADFLOW(options=aeroOptions)
-pt = solver.adflow.paramturb
 
-# --- SA: 设置 9 个校准参数 (c_w1 自动重算) ---
-pt.setsaconstants(
-    0.1355,    # cb1
-    0.622,     # cb2
-    2.0/3.0,   # sigma (存储在 rsacb3 中)
-    0.41,      # kappa
-    7.1,       # cv1
-    0.3,       # cw2
-    2.0,       # cw3
-    1.2,       # ct3
-    0.5        # ct4
+# --- SA: set 9 calibration parameters (cw1 auto-recomputed) ---
+set_sa_constants(
+    cb1=0.1355, cb2=0.622, sigma=2.0/3.0, kappa=0.41,
+    cv1=7.1, cw2=0.3, cw3=2.0, ct3=1.2, ct4=0.5,
 )
 
-# --- SST: 设置 9 个独立参数 ---
-pt.setsstconstants(
-    0.41,      # sstk
-    0.31,      # a1
-    0.09,      # betas
-    0.85,      # sigk1
-    0.5,       # sigw1
-    0.075,     # beta1
-    1.0,       # sigk2
-    0.856,     # sigw2
-    0.0828     # beta2
+# Read back current values
+print(get_sa_constants())
+# {'cb1': 0.1355, 'cb2': 0.622, 'sigma': 0.6667, 'kappa': 0.41,
+#  'cv1': 7.1, 'cw1': 3.2391, 'cw2': 0.3, 'cw3': 2.0, 'ct3': 1.2, 'ct4': 0.5}
+
+# --- SST: set 9 independent parameters ---
+set_sst_constants(
+    sstk=0.41, a1=0.31, betas=0.09,
+    sigk1=0.85, sigw1=0.5, beta1=0.075,
+    sigk2=1.0, sigw2=0.856, beta2=0.0828,
 )
 
-# --- 也可单独设置 ---
-pt.rsacw2 = 0.055       # SA
-pt.rsstbeta1 = 0.06     # SST
+# Reset to defaults
+set_sa_defaults()
+set_sst_defaults()
 ```
 
-## 构建与部署
+### Important Usage Notes
 
-本仓库**不提供预编译二进制**。正确的使用方式是：在已有 ADflow 编译环境中，用 `patch_adflow_turb.py` 补丁原版源码后重新编译。
+- **Create ONE solver instance** and switch coefficients between `AeroProblem` runs. Creating multiple `ADFLOW` instances causes a PETSc crash.
+- **Re-apply coefficients before each solve**: ADflow's internal `referenceState` may be called on AeroProblem switch. Set coefficients right before `solver(ap)`.
+- Copy `adflow_turb_ctypes.py` to your working directory or add this repo's root to `PYTHONPATH`.
 
-> **注意**: 仓库中的 `adflow/libadflow.so` 是构建环境的产物，通过 git 克隆可能因行尾转换而损坏。请务必在目标环境中从源码编译。
+### Coefficient Reference
 
-### 前置条件
+**SA Model** — 9 calibration parameters:
 
-- 安装 [Docker Desktop](https://www.docker.com/products/docker-desktop/)，确保已启动
+| Parameter | Variable | Default | Description |
+|-----------|----------|---------|-------------|
+| cb1 | `rsaCb1` | 0.1355 | Production coefficient |
+| cb2 | `rsaCb2` | 0.622 | Diffusion coefficient |
+| sigma | `rsaCb3` | 2/3 | Diffusion ratio (**stored as rsaCb3, not c_b3**) |
+| kappa | `rsaK` | 0.41 | von Karman constant |
+| cv1 | `rsaCv1` | 7.1 | Wall damping coefficient |
+| cw2 | `rsaCw2` | 0.3 | Destruction coefficient |
+| cw3 | `rsaCw3` | 2.0 | Destruction coefficient |
+| ct3 | `rsaCt3` | 1.2 | Transition coefficient |
+| ct4 | `rsaCt4` | 0.5 | Transition coefficient |
 
-### 第一步：拉取 MDO Lab 官方 Docker 镜像
+Derived: `cw1 = cb1/kappa^2 + (1+cb2)/sigma` (auto-recomputed by setter)
 
-在 Windows PowerShell / CMD / Git Bash 中执行（不是在 Docker 容器内）：
+Auxiliary (modifiable but not in standard calibration): `rsaCt1` (1.0), `rsaCt2` (2.0), `rsaCrot` (2.0)
+
+**SST Model** — 9 independent parameters:
+
+| Parameter | Variable | Default |
+|-----------|----------|---------|
+| kappa | `rSSTK` | 0.41 |
+| a1 | `rSSTA1` | 0.31 |
+| beta* | `rSSTBetas` | 0.09 |
+| sigma_k1 | `rSSTSigk1` | 0.85 |
+| sigma_w1 | `rSSTSigw1` | 0.5 |
+| beta_1 | `rSSTBeta1` | 0.075 |
+| sigma_k2 | `rSSTSigk2` | 1.0 |
+| sigma_w2 | `rSSTSigw2` | 0.856 |
+| beta_2 | `rSSTBeta2` | 0.0828 |
+
+## Build & Deploy
+
+This repository does **not** provide pre-compiled binaries. The workflow is: patch the ADflow source with `patch_adflow_turb.py`, then compile from source.
+
+> **Note**: The `adflow/libadflow.so` in this repo is a build artifact and may be corrupted by git line-ending conversion. Always compile from source on the target platform.
+
+### Option A: Docker (Recommended for Development)
+
+#### 1. Pull the MDO Lab Docker image
 
 ```bash
 docker pull mdolab/public:u22-gcc-ompi-stable
 ```
 
-镜像约 5 GB，首次拉取需要等待。完成后会看到 `Status: Downloaded newer image` 或 `Status: Image is up to date`。
-
-### 第二步：启动容器
+#### 2. Start container
 
 ```bash
 docker run -it --name adflow-turb mdolab/public:u22-gcc-ompi-stable bash
 ```
 
-成功后终端提示符变为容器内的用户：
-
-```
-mdolabuser@xxxxxxxxxxxx:~$
-```
-
-> **容器管理**：
-> - 退出容器：输入 `exit`
-> - 重新进入已停止的容器：`docker start -i adflow-turb`
-> - 删除容器：`docker rm adflow-turb`
-> - 如果容器名已被占用：换一个名字（如 `adflow-turb2`），或先 `docker rm` 旧容器
-
-以下所有步骤均在容器内执行。
-
-### 第三步：克隆本仓库
+#### 3. Clone and patch
 
 ```bash
 git clone https://github.com/bominwang/adflow-turb-calibration.git /tmp/repo
-```
-
-预期输出：
-
-```
-Cloning into '/tmp/repo'...
-...
-Receiving objects: 100% ...
-```
-
-### 第四步：运行补丁脚本
-
-```bash
 python3 /tmp/repo/patch_adflow_turb.py
 ```
 
-预期输出（5 个文件依次被补丁）：
+Expected output (4 files patched):
 
 ```
-======================================================================
-Patching ADflow for runtime SA + SST coefficient modification
-======================================================================
-
-[1/5] Patching paramTurb.F90 (SA + SST mutable with initialisers)...
-  Backup: .../paramTurb.F90.bak
+[1/4] Patching paramTurb.F90 (SA + SST mutable with initialisers)...
   Patched: .../paramTurb.F90
-
-[2/5] Patching adflow.pyf (f2py interface)...
-  Backup: .../adflow.pyf.bak
-  Patched: .../adflow.pyf
-
-[3/5] Patching initializeFlow.F90 (no setter calls in referenceState)...
+[2/4] Checking initializeFlow.F90 (no setter calls in referenceState)...
   .../initializeFlow.F90: no setter calls found, OK.
-
-[4/5] Patching SST.F90 (f1 blending: 0.09 -> rSSTBetas)...
+[3/4] Patching SST.F90 (f1 blending: 0.09 -> rSSTBetas)...
   Patched: .../SST.F90
-
-[5/5] Patching turbUtils.F90 (eddy viscosity: 0.09 -> rSSTBetas)...
+[4/4] Patching turbUtils.F90 (eddy viscosity: 0.09 -> rSSTBetas)...
   Patched: .../turbUtils.F90
-
-======================================================================
-Patch complete!
-======================================================================
 ```
 
-补丁脚本默认补丁路径为 `/home/mdolabuser/repos/adflow/src`（MDO Lab Docker 镜像中的标准位置）。如需指定其他路径：
-
-```bash
-ADFLOW_SRC=/your/adflow/src python3 /tmp/repo/patch_adflow_turb.py
-```
-
-### 第五步：重新编译 ADflow
+#### 4. Compile and install
 
 ```bash
 cd /home/mdolabuser/repos/adflow
 make clean && make
+pip install -e .
 ```
 
-编译过程中会出现一些 `Warning: Type mismatch` 警告，这是 ADflow 原版代码的 CGNS 模块问题，**不影响使用**。只要没有 `Error` 导致编译中断即可。
-
-编译成功的标志是最后几行出现：
+Compilation warnings about `Type mismatch` are from upstream ADflow CGNS bindings and are harmless. Success is indicated by:
 
 ```
 Testing if module libadflow can be imported...
 Module libadflow was successfully imported
 ```
 
-然后安装 Python 包：
+#### 5. Verify
 
 ```bash
-pip install -e .
+cp /tmp/repo/adflow_turb_ctypes.py /home/mdolabuser/
+python3 -c "
+import sys; sys.path.insert(0, '/home/mdolabuser')
+from adflow_turb_ctypes import set_sa_constants, get_sa_constants, set_sa_defaults
+
+set_sa_defaults()
+c = get_sa_constants()
+assert abs(c['cb1'] - 0.1355) < 1e-6, f'default failed: {c}'
+
+set_sa_constants(0.5, 0.622, 2/3, 0.41, 7.1, 0.3, 2.0, 1.2, 0.5)
+c = get_sa_constants()
+assert abs(c['cb1'] - 0.5) < 1e-6, f'set failed: {c}'
+
+set_sa_defaults()
+c = get_sa_constants()
+assert abs(c['cb1'] - 0.1355) < 1e-6, f'reset failed: {c}'
+
+print('ctypes interface: OK')
+print('SA read/write/reset: OK')
+"
 ```
 
-预期输出：`Successfully installed adflow-2.12.1`
+### Option B: HPC Native Compilation
 
-### 第六步：验证安装
+For HPC systems without Docker/Singularity. Requires GCC gfortran + OpenMPI.
 
-#### 快速验证（系数接口）
+See `hpc/deploy.sh` for an automated deployment script, or follow the manual steps below.
 
-需要一个网格文件。在 Windows 上**另开一个终端**，将网格复制进容器：
+#### Prerequisites
+
+- GCC gfortran (tested with 12.2)
+- OpenMPI (tested with 4.1.5) or Intel MPI
+- PETSc 3.15+ compiled with shared libraries
+- CGNS 4.x compiled with Fortran support
+- Python 3 with numpy and mpi4py
+
+#### Manual steps
 
 ```bash
-docker cp /path/to/adflow-turb-calibration/examples/NACA0012/mesh/n0012.cgns adflow-turb:/tmp/mesh.cgns
-```
-
-回到容器内终端，运行验证脚本：
-
-```python
-python3 << 'EOF'
-from adflow import ADFLOW
-import os
-os.makedirs("/tmp/output", exist_ok=True)
-
-solver = ADFLOW(options={
-    "gridFile": "/tmp/mesh.cgns",
-    "outputDirectory": "/tmp/output",
-    "equationType": "RANS",
-    "turbulenceModel": "SA",
-    "nCycles": 1,
-})
-pt = solver.adflow.paramturb
-
-# 检查默认值
-print("=== SA defaults ===")
-print(f"cb1={pt.rsacb1:.4f} (expect 0.1355)")
-print(f"cw1={pt.rsacw1:.4f} (expect 3.2391)")
-
-# 修改系数并验证 cw1 自动重算
-pt.setsaconstants(0.14, 0.65, 0.7, 0.40, 7.0, 0.25, 1.8, 1.2, 0.5)
-expected_cw1 = 0.14 / 0.40**2 + (1 + 0.65) / 0.7
-print(f"\n=== After setsaconstants ===")
-print(f"cb1={pt.rsacb1:.4f} (expect 0.14)")
-print(f"cw1={pt.rsacw1:.4f} (expect {expected_cw1:.4f})")
-print(f"cw1 match: {abs(pt.rsacw1 - expected_cw1) < 1e-6}")
-
-# SST 系数
-pt.setsstconstants(0.41, 0.35, 0.085, 0.85, 0.5, 0.075, 1.0, 0.856, 0.0828)
-print(f"\n=== After setsstconstants ===")
-print(f"a1={pt.rssta1:.4f} (expect 0.35)")
-print(f"betas={pt.rsstbetas:.4f} (expect 0.085)")
-print(f"\n=== ALL PASSED ===")
-EOF
-```
-
-**安装正确的预期输出**：
-
-```
-=== SA defaults ===
-cb1=0.1355 (expect 0.1355)
-cw1=3.2391 (expect 3.2391)
-
-=== After setsaconstants ===
-cb1=0.1400 (expect 0.14)
-cw1=3.2321 (expect 3.2321)
-cw1 match: True
-
-=== After setsstconstants ===
-a1=0.3500 (expect 0.35)
-betas=0.0850 (expect 0.085)
-
-=== ALL PASSED ===
-```
-
-如果看到 `ALL PASSED` 和 `cw1 match: True`，说明 SA 和 SST 系数接口全部正常。
-
-#### 完整算例验证（NACA 0012 Cp 分布）
-
-挂载本仓库到容器后，可运行完整的 NACA 0012 验证算例：
-
-```bash
-# 先停止当前容器
-exit
-
-# 重新启动并挂载仓库目录（Windows 路径示例）
-docker run -it --name adflow-turb-full \
-  -v /path/to/adflow-turb-calibration:/workspace/repo \
-  mdolab/public:u22-gcc-ompi-stable bash
-
-# 在容器内重复第三～五步（patch + compile + install）
-python3 /workspace/repo/patch_adflow_turb.py
-cd /home/mdolabuser/repos/adflow && make clean && make && pip install -e .
-
-# 运行 SA 验证（4 组算例：1 默认 + 3 随机系数）
-cd /workspace/repo/examples/NACA0012
-mpirun --oversubscribe -np 2 python3 run_naca0012_sa_verify.py
-```
-
-SA 模型使用默认系数时的预期结果：
-
-| 指标 | 预期值 |
-|------|--------|
-| Cl | ≈ 0.287 |
-| Cd | ≈ 0.013 |
-| 收敛 | ~60 次迭代达到 L2 残差 1e-15 |
-
-如果 4 组算例全部收敛，且不同系数对应的 Cl/Cd 和 Cp 分布有差异，说明系数修改在实际求解中生效。
-
-SST 模型验证同理：
-
-```bash
-mpirun --oversubscribe -np 2 python3 run_naca0012_sst_verify.py
-```
-
-### 超算部署 (方式 A: Singularity 容器)
-
-在支持 Singularity/Apptainer 的 HPC 上，可直接从 Docker 镜像转换：
-
-```bash
-# 方法 1: 直接从 Docker 镜像转换
-singularity pull adflow-turb.sif docker://mdolab/public:u22-gcc-ompi-stable
-
-# 方法 2: 使用 Dockerfile 构建自定义镜像后转换
-docker build -t adflow-turb:latest .
-singularity pull adflow-turb.sif docker-daemon://adflow-turb:latest
-```
-
-Dockerfile 示例：
-
-```dockerfile
-FROM mdolab/public:u22-gcc-ompi-stable
-
-COPY patch_adflow_turb.py /tmp/patch_adflow_turb.py
-RUN python3 /tmp/patch_adflow_turb.py \
-    && cd /home/mdolabuser/repos/adflow \
-    && make clean && make \
-    && pip install -e .
-```
-
-### 超算部署 (方式 B: 原生编译)
-
-在不支持 Docker/Singularity 的 HPC 上，需要从源码编译完整工具链。
-
-> **编译器要求: 必须使用 GCC gfortran。** Intel ifort 存在已知 bug，导致系数修改不生效（详见下方"已知问题"）。
-
-#### 1. 编译 PETSc
-
-```bash
-# 下载 PETSc 3.15.x 源码
-# 如果 HPC 无法访问外网，需提前下载依赖包 (superlu_dist, sowing 等)
-
-cd /path/to/petsc-3.15.5
-./configure \
-    --prefix=/path/to/petsc-install \
-    --with-cc=mpicc --with-cxx=mpicxx --with-fc=mpifort \
-    --with-shared-libraries=1 \
-    --with-fortran-bindings=0 \
-    --with-debugging=0 \
-    --download-superlu_dist=/path/to/local/superlu_dist.tar.gz \
-    COPTFLAGS="-O2" CXXOPTFLAGS="-O2" FOPTFLAGS="-O2"
-
-make all
-make install
-
-export PETSC_DIR=/path/to/petsc-install
-export PETSC_ARCH=""
-```
-
-#### 2. 编译 CGNS
-
-```bash
-# 下载 CGNS 4.2.0 源码
-# 使用 cmake 或手动编译
-
-cd /path/to/CGNS-4.2.0
-mkdir build && cd build
-cmake .. -DCMAKE_INSTALL_PREFIX=/path/to/cgns-install \
-         -DCGNS_ENABLE_FORTRAN=ON \
-         -DCGNS_BUILD_SHARED=OFF \
-         -DCMAKE_C_COMPILER=gcc \
-         -DCMAKE_Fortran_COMPILER=gfortran
-
-make && make install
-export CGNS_HOME=/path/to/cgns-install
-```
-
-> 如果 HPC 的 cmake 版本过旧 (< 3.8)，可手动编译 CGNS C 和 Fortran 源文件并打包为 `libcgns.a`。
-
-#### 3. 编译 ADflow
-
-```bash
-# 克隆本仓库
+# 1. Clone
 git clone https://github.com/bominwang/adflow-turb-calibration.git
 cd adflow-turb-calibration
 
-# 运行补丁
+# 2. Set environment
+export PETSC_DIR=/path/to/petsc-install
+export PETSC_ARCH=""
+export CGNS_HOME=/path/to/cgns-install
+
+# 3. Patch
+export ADFLOW_SRC=$(pwd)/src
 python3 patch_adflow_turb.py
 
-# 编写 config/config.mk (根据你的 HPC 环境调整路径)
+# 4. Create config/config.mk (adjust paths for your HPC)
 cat > config/config.mk << 'EOF'
 FF90 = mpifort
 CC   = mpicc
@@ -419,118 +207,123 @@ FF90_FLAGS = $(FF77_FLAGS) -std=f2008
 FFXX_OPT_FLAGS = -O2
 C_FLAGS   = -fPIC -O2 -std=c99
 
-FF90_COMPILER_FLAGS = -cpp
+AR       = ar
+AR_FLAGS = -rvs
 
-# 注意: 如果 HPC 的 conda 环境中有其他版本的 GCC/MPI，
-# 建议使用绝对路径避免冲突，例如:
-# FF90 = /path/to/openmpi/bin/mpifort
-# CC   = /path/to/openmpi/bin/mpicc
+LINKER       = $(FF90)
+LINKER_FLAGS =
+
+CGNS_INCLUDE_FLAGS=-I$(CGNS_HOME)/include
+CGNS_LINKER_FLAGS=-L$(CGNS_HOME)/lib -lcgns
+
+include ${PETSC_DIR}/lib/petsc/conf/variables
+PETSC_INCLUDE_FLAGS=${PETSC_CC_INCLUDES} -I$(PETSC_DIR)
+PETSC_LINKER_FLAGS=${PETSC_LIB}
+
+FF90_PRECISION_FLAGS = $(FF90_INTEGER_PRECISION_FLAG)$(FF90_REAL_PRECISION_FLAG)
+CC_PRECISION_FLAGS   = $(CC_INTEGER_PRECISION_FLAG) $(CC_REAL_PRECISION_FLAG)
+
+PYTHON = python3
+PYTHON-CONFIG = python3-config
+F2PY = f2py
 EOF
 
-# 编译
+# 5. Compile
 make clean && make
 
-# 安装 (如果 HPC 有外网)
+# 6. Install (if network available)
 pip install -e .
 
-# 如果 HPC 无外网，使用 PYTHONPATH + symlink 替代:
-ln -sf ../src/build/libadflow.so adflow/libadflow.so
-export PYTHONPATH=/path/to/adflow-turb-calibration:$PYTHONPATH
+# If no network, use PYTHONPATH:
+# export PYTHONPATH=$(pwd):$PYTHONPATH
 ```
 
-#### 4. 验证
+#### HPC Common Issues
 
-```python
-python3 -c "
-from adflow.libadflow import paramturb as pt
-print('cb1 =', pt.rsacb1, '(expect 0.1355)')
-print('sstk =', pt.rsstk, '(expect 0.41)')
-pt.setsaconstants(0.5, 0.622, 2.0/3.0, 0.41, 7.1, 0.3, 2.0, 1.2, 0.5)
-print('cb1 after set =', pt.rsacb1, '(expect 0.5)')
-pt.setsadefaults()
-print('cb1 after reset =', pt.rsacb1, '(expect 0.1355)')
-print('ALL OK')
-"
+| Problem | Cause | Solution |
+|---------|-------|----------|
+| `cgns.mod: Unexpected EOF` | `.mod` from Intel, used with GCC | Recompile CGNS with GCC |
+| `u_int64_t` undefined | `adStack.c` non-standard type | `#include <stdint.h>`, replace with `uint64_t` |
+| `__intel_sse2_*` undefined | CGNS static lib has Intel objects | Recompile CGNS C sources with GCC |
+| conda MPI conflict | conda OpenMPI 5.x overrides system 4.x | Use absolute compiler paths or `LD_PRELOAD` |
+| `pip install` fails (no network) | Can't download setuptools | Use `PYTHONPATH` instead |
+
+### Option C: Singularity (HPC with Container Support)
+
+```bash
+singularity pull adflow-turb.sif docker://mdolab/public:u22-gcc-ompi-stable
 ```
 
-#### HPC 编译常见问题
+Or build a custom image with Dockerfile:
 
-| 问题 | 原因 | 解决方案 |
-|------|------|----------|
-| `cgns.mod: Unexpected EOF` | `.mod` 文件由 Intel 编译，GCC 不兼容 | 用 GCC 重新编译 CGNS Fortran 模块 |
-| `u_int64_t` 未定义 | `adStack.c` 使用了非标准类型 | `#include <stdint.h>` 并替换为 `uint64_t` |
-| `__intel_sse2_*` 符号未定义 | CGNS 静态库含 Intel 编译的 C 对象 | 用 GCC 重新编译 CGNS 所有 C 源文件 |
-| conda MPI 库冲突 | conda 中的 OpenMPI 5.x 覆盖系统 4.x | 使用 `LD_PRELOAD` 或编译器绝对路径 |
-| `pip install` 失败 (无外网) | HPC 无法下载 setuptools | 用 `PYTHONPATH` + symlink 替代 |
-
-## 验证
-
-### 单元测试
-
-全部 7 项测试通过：
-
-```
-discover            : PASS   (22 variables + 4 subroutines)
-sa_defaults         : PASS
-sst_defaults        : PASS
-sa_readwrite        : PASS   (13/13)
-sst_readwrite       : PASS   (9/9)
-sa_setter           : PASS   (9 params + c_w1 auto-recompute)
-sst_setter          : PASS   (9 params)
+```dockerfile
+FROM mdolab/public:u22-gcc-ompi-stable
+COPY patch_adflow_turb.py adflow_turb_ctypes.py /tmp/
+RUN python3 /tmp/patch_adflow_turb.py \
+    && cd /home/mdolabuser/repos/adflow \
+    && make clean && make \
+    && pip install -e .
 ```
 
-### NACA 0012 算例验证
+## Patched Files (4)
 
-在 NACA 0012 翼型上进行了系数敏感性验证（M=0.75, α=1.5°, 海拔 10000 m）。每个湍流模型运行 4 组算例：1 组默认系数 + 3 组随机采样系数，提取表面压力系数 (Cp) 分布进行对比。
+| File | Change |
+|------|--------|
+| `src/modules/paramTurb.F90` | SA + SST constants become mutable; 4 setter subroutines added |
+| `src/initFlow/initializeFlow.F90` | Ensure `referenceState` does not call setters (would clobber user coefficients) |
+| `src/turbulence/SST.F90` | Hardcoded `0.09` (beta*) in f1 blending replaced with `rSSTBetas` |
+| `src/turbulence/turbUtils.F90` | Hardcoded `0.09` (beta*) in eddy viscosity replaced with `rSSTBetas` |
 
-**SA 模型**（7 个校准参数独立采样，ct3/ct4 保持默认）：
+## Verification
 
-| 算例 | Cl | Cd |
-|------|--------|---------|
-| default | 0.2867 | 0.01326 |
-| random_1 | 0.2864 | 0.01324 |
-| random_2 | 0.2891 | 0.01324 |
-| random_3 | 0.2882 | 0.01253 |
+### HPC A/B Test (ONERA M6, Paracloud BSCC, Job 36920821)
 
-![SA Cp 对比](doc/naca0012_sa_cp_compare.png)
+Three-case test with SA model on ONERA M6 wing (M=0.8395, alpha=3.06 deg). Single ADFLOW solver instance, coefficients switched between runs via ctypes API:
 
-**SST 模型**（9 个校准参数全部独立采样）：
+| Case | cb1 | CL | CD |
+|------|-----|--------|---------|
+| A (default) | 0.1355 | 0.2606478129 | 0.0187979813 |
+| B (+48%) | 0.2 | 0.2625755177 | 0.0193669582 |
+| C (-41%) | 0.08 | 0.2573790690 | 0.0178077544 |
 
-| 算例 | Cl | Cd |
-|------|--------|---------|
-| default | 0.2942 | 0.01789 |
-| random_1 | 0.2965 | 0.01667 |
-| random_2 | 0.2960 | 0.01435 |
-| random_3 | 0.2886 | 0.01727 |
+All three cases produce **different** CL/CD. Trends are physically consistent:
+- cb1 up → more turbulent production → thicker boundary layer → higher CL/CD
+- cb1 down → less production → thinner boundary layer → lower CL/CD
 
-![SST Cp 对比](doc/naca0012_sst_cp_compare.png)
+### Docker NACA 0012 Cp Validation
 
-算例脚本位于 `examples/NACA0012/` 目录下。
+SA and SST models each tested with 4 coefficient sets (1 default + 3 random). All cases converge and show coefficient-dependent Cp variations.
 
-## 已知问题
+See `examples/NACA0012/` for scripts and results.
 
-### Intel ifort 编译器不兼容
+## Known Issues
 
-**Intel ifort (包括 Intel oneAPI ifx) 编译的 ADflow 无法正确进行系数校准。**
+### f2py Module Variable Bug (Critical)
 
-**症状**: 通过 f2py 修改 SA/SST 闭合系数后，CFD 计算结果完全不变（CL/CD 差异严格为 0）。
+**Do NOT use the f2py module interface (`pt = solver.adflow.paramturb`) for coefficient modification.** This is the reason this fork uses ctypes instead.
 
-**根因**: Intel ifort 在将 Fortran `.a` 静态库链接到 `.so` 共享库时，会为 module 数据创建**两个独立的内存副本**。f2py Python 接口修改的是副本 A，而 Fortran 计算子程序读取的是副本 B。两者互不影响。
+**Symptom**: Setting coefficients via f2py reads back correctly, but has **zero effect** on CFD computation. All CL/CD values are identical to machine precision regardless of coefficient changes.
 
-**验证方法**: A/B 测试 — 用默认 cb1=0.1355 和修改后 cb1=0.5 分别运行同一算例，比较 CL/CD:
-- Intel ifort: CL 差异 = 0, CD 差异 = 0 (bug)
-- GCC gfortran: CL 差异 = 1.16e-02, CD 差异 = 2.70e-01 (正确)
+**Root cause**: When f2py wraps a Fortran shared library, the module variable data exists in **two separate memory locations**: one accessed by the f2py Python wrapper, and one used by the Fortran computation subroutines (`sa_block`, `blockette`, etc.). Python writes to copy A; Fortran reads from copy B.
 
-**解决方案**: 使用 GCC gfortran 编译。GCC 正确处理共享库中的 module 数据引用。
+**Affected compilers**: Both Intel ifort/ifx AND GCC gfortran. This is NOT a compiler-specific issue.
 
-### CGNS HDF5 格式
+**Verification**: Hardcoding `rsaCb1 = 0.5` in source code and recompiling produces different CL/CD (Job 36920761), confirming the Fortran module variables work correctly. The bug is exclusively in how f2py accesses them.
 
-如果 CGNS 编译时未链接 HDF5 库，只能读取 ADF 格式的 CGNS 文件。建议编译 CGNS 时加上 `-DCGNS_ENABLE_HDF5=ON` 并提供 HDF5 路径。
+**Solution**: The ctypes API (`adflow_turb_ctypes.py`) uses `ctypes.c_double.in_dll()` to locate the actual Fortran symbol address (e.g., `__paramturb_MOD_rsacb1`) in the loaded `libadflow.so`. This writes to the same memory that computation code reads, and is verified to produce different CL/CD (Job 36920788, 36920821).
 
-## 上游版本
+### CGNS HDF5 Format
 
-基于 [mdolab/adflow](https://github.com/mdolab/adflow) v2.12.1。
+If CGNS was compiled without HDF5, only ADF-format CGNS files can be read. Compile CGNS with `-DCGNS_ENABLE_HDF5=ON` for HDF5 support.
 
-## 许可证
+### PETSc Reinitialization
 
-与上游一致：GNU Lesser General Public License (LGPL), version 2.1。详见 [LICENSE.md](LICENSE.md)。
+Creating multiple `ADFLOW` instances in one Python process causes a PETSc `MPI_ABORT`. Use a single solver instance and create new `AeroProblem` objects for different coefficient sets.
+
+## Upstream
+
+Based on [mdolab/adflow](https://github.com/mdolab/adflow) v2.12.1.
+
+## License
+
+Same as upstream: GNU Lesser General Public License (LGPL), version 2.1. See [LICENSE.md](LICENSE.md).

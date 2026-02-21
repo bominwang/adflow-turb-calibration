@@ -5,30 +5,42 @@ Patch ADflow to expose SA and SST closure coefficients as runtime-modifiable var
 Changes:
   1. paramTurb.F90:       Remove `parameter` from SA & SST constants, add default
                           initial values and setter subroutines
-  2. adflow.pyf:          Add paramturb module to f2py interface (SA + SST vars & subs)
-  3. initializeFlow.F90:  NO calls to setSADefaults/setSSTDefaults in referenceState
+  2. initializeFlow.F90:  NO calls to setSADefaults/setSSTDefaults in referenceState
                           (defaults come from module-level initialisers; referenceState
                           is called on every AeroProblem switch and would clobber
                           user-supplied coefficients)
-  4. SST.F90:             Replace hardcoded 0.09 (beta*) with rSSTBetas in f1 blending
-  5. turbUtils.F90:       Replace hardcoded 0.09 (beta*) with rSSTBetas in f2/eddy-visc
+  3. SST.F90:             Replace hardcoded 0.09 (beta*) with rSSTBetas in f1 blending
+  4. turbUtils.F90:       Replace hardcoded 0.09 (beta*) with rSSTBetas in f2/eddy-visc
 
-Usage (inside MDO Lab Docker):
+NOTE: The f2py interface (.pyf patch) has been removed.  f2py module variable access
+has a known memory duplication bug: Python writes go to f2py's copy of the module data,
+but Fortran computation code reads from its own copy.  This makes coefficient
+modifications appear to succeed (read-back matches) while having ZERO effect on the
+actual CFD computation.  This bug affects BOTH Intel ifort AND GCC gfortran.
+
+The recommended Python API is via ctypes (adflow_turb_ctypes.py), which directly
+writes to the Fortran symbol addresses in the loaded shared library.
+
+Usage (inside MDO Lab Docker or HPC):
     python3 patch_adflow_turb.py
-    cd /home/mdolabuser/repos/adflow
+    cd /path/to/adflow
     make clean && make
     pip install -e .
 
-Python API after rebuild:
-    pt = solver.adflow.paramturb
+Python API after rebuild (via ctypes):
+    from adflow_turb_ctypes import (
+        set_sa_constants, set_sa_defaults, get_sa_constants,
+        set_sst_constants, set_sst_defaults, get_sst_constants,
+    )
 
     # SA coefficients
-    pt.setsadefaults()
-    pt.setsaconstants(cb1, cb2, sigma, kappa, cv1, cw2, cw3, ct3, ct4)
+    set_sa_constants(cb1=0.1355, cb2=0.622, sigma=2/3, kappa=0.41,
+                     cv1=7.1, cw2=0.3, cw3=2.0, ct3=1.2, ct4=0.5)
 
     # SST coefficients
-    pt.setsstdefaults()
-    pt.setsstconstants(sstk, a1, betas, sigk1, sigw1, beta1, sigk2, sigw2, beta2)
+    set_sst_constants(sstk=0.41, a1=0.31, betas=0.09,
+                      sigk1=0.85, sigw1=0.5, beta1=0.075,
+                      sigk2=1.0, sigw2=0.856, beta2=0.0828)
 """
 
 import os
@@ -39,7 +51,6 @@ ADFLOW_SRC = os.environ.get(
     "ADFLOW_SRC", "/home/mdolabuser/repos/adflow/src"
 )
 PARAMTURB_F90 = os.path.join(ADFLOW_SRC, "modules", "paramTurb.F90")
-ADFLOW_PYF = os.path.join(ADFLOW_SRC, "f2py", "adflow.pyf")
 INIT_FLOW_F90 = os.path.join(ADFLOW_SRC, "initFlow", "initializeFlow.F90")
 SST_F90 = os.path.join(ADFLOW_SRC, "turbulence", "SST.F90")
 TURBUTILS_F90 = os.path.join(ADFLOW_SRC, "turbulence", "turbUtils.F90")
@@ -293,104 +304,7 @@ end module paramTurb
 
 
 # ============================================================
-# 2. Patch adflow.pyf
-# ============================================================
-def patch_pyf():
-    """Patch adflow.pyf: add paramturb module with SA + SST vars and subroutines."""
-
-    backup = ADFLOW_PYF + ".bak"
-    if not os.path.exists(backup):
-        shutil.copy2(ADFLOW_PYF, backup)
-        print(f"  Backup: {backup}")
-
-    with open(ADFLOW_PYF, "r") as f:
-        content = f.read()
-
-    # Check if already patched
-    if "module paramturb" in content.lower():
-        print("  adflow.pyf already contains paramturb module, skipping.")
-        return
-
-    # f2py interface block for paramturb module
-    paramturb_pyf = """
-       module paramturb ! in :adflow:../../modules/paramTurb.F90
-         use constants
-         ! ----- SA constants (13 variables) -----
-         real(kind=realtype) :: rsak
-         real(kind=realtype) :: rsacb1
-         real(kind=realtype) :: rsacb2
-         real(kind=realtype) :: rsacb3
-         real(kind=realtype) :: rsacv1
-         real(kind=realtype) :: rsacw1
-         real(kind=realtype) :: rsacw2
-         real(kind=realtype) :: rsacw3
-         real(kind=realtype) :: rsact1
-         real(kind=realtype) :: rsact2
-         real(kind=realtype) :: rsact3
-         real(kind=realtype) :: rsact4
-         real(kind=realtype) :: rsacrot
-
-         ! ----- SST constants (9 variables) -----
-         real(kind=realtype) :: rsstk
-         real(kind=realtype) :: rssta1
-         real(kind=realtype) :: rsstbetas
-         real(kind=realtype) :: rsstsigk1
-         real(kind=realtype) :: rsstsigw1
-         real(kind=realtype) :: rsstbeta1
-         real(kind=realtype) :: rsstsigk2
-         real(kind=realtype) :: rsstsigw2
-         real(kind=realtype) :: rsstbeta2
-
-         ! ----- SA subroutines -----
-         subroutine setsadefaults()
-         end subroutine setsadefaults
-
-         subroutine setsaconstants(cb1, cb2, sigma, kappa, cv1, cw2, cw3, ct3, ct4)
-           real(kind=realtype), intent(in) :: cb1
-           real(kind=realtype), intent(in) :: cb2
-           real(kind=realtype), intent(in) :: sigma
-           real(kind=realtype), intent(in) :: kappa
-           real(kind=realtype), intent(in) :: cv1
-           real(kind=realtype), intent(in) :: cw2
-           real(kind=realtype), intent(in) :: cw3
-           real(kind=realtype), intent(in) :: ct3
-           real(kind=realtype), intent(in) :: ct4
-         end subroutine setsaconstants
-
-         ! ----- SST subroutines -----
-         subroutine setsstdefaults()
-         end subroutine setsstdefaults
-
-         subroutine setsstconstants(sstk, a1, betas, sigk1, sigw1, beta1, sigk2, sigw2, beta2)
-           real(kind=realtype), intent(in) :: sstk
-           real(kind=realtype), intent(in) :: a1
-           real(kind=realtype), intent(in) :: betas
-           real(kind=realtype), intent(in) :: sigk1
-           real(kind=realtype), intent(in) :: sigw1
-           real(kind=realtype), intent(in) :: beta1
-           real(kind=realtype), intent(in) :: sigk2
-           real(kind=realtype), intent(in) :: sigw2
-           real(kind=realtype), intent(in) :: beta2
-         end subroutine setsstconstants
-
-       end module paramturb
-"""
-
-    # Insert after "end module constants"
-    marker = "       end module constants"
-    if marker not in content:
-        print("  ERROR: Could not find 'end module constants' in adflow.pyf")
-        return
-
-    content = content.replace(marker, marker + "\n" + paramturb_pyf)
-
-    with open(ADFLOW_PYF, "w") as f:
-        f.write(content)
-    print(f"  Patched: {ADFLOW_PYF}")
-
-
-# ============================================================
-# 3. Patch initializeFlow.F90  (do NOT add setter calls)
+# 2. Ensure initializeFlow.F90 does NOT call setters
 # ============================================================
 def patch_initializeflow():
     """Ensure initializeFlow.F90 does NOT call setSADefaults/setSSTDefaults
@@ -438,7 +352,7 @@ def patch_initializeflow():
 
 
 # ============================================================
-# 4. Patch SST.F90  (replace hardcoded 0.09 with rSSTBetas)
+# 3. Patch SST.F90  (replace hardcoded 0.09 with rSSTBetas)
 # ============================================================
 def patch_sst():
     """In the f1SST subroutine, replace hardcoded 0.09_realType (beta*)
@@ -500,7 +414,7 @@ def patch_sst():
 
 
 # ============================================================
-# 5. Patch turbUtils.F90  (replace hardcoded 0.09 with rSSTBetas)
+# 4. Patch turbUtils.F90  (replace hardcoded 0.09 with rSSTBetas)
 # ============================================================
 def patch_turbutils():
     """In SSTEddyViscosity, replace hardcoded 0.09_realType (beta*) with
@@ -538,19 +452,16 @@ def main():
     print("Patching ADflow for runtime SA + SST coefficient modification")
     print("=" * 70)
 
-    print("\n[1/5] Patching paramTurb.F90 (SA + SST mutable with initialisers)...")
+    print("\n[1/4] Patching paramTurb.F90 (SA + SST mutable with initialisers)...")
     patch_paramturb()
 
-    print("\n[2/5] Patching adflow.pyf (f2py interface)...")
-    patch_pyf()
-
-    print("\n[3/5] Patching initializeFlow.F90 (no setter calls in referenceState)...")
+    print("\n[2/4] Checking initializeFlow.F90 (no setter calls in referenceState)...")
     patch_initializeflow()
 
-    print("\n[4/5] Patching SST.F90 (f1 blending: 0.09 -> rSSTBetas)...")
+    print("\n[3/4] Patching SST.F90 (f1 blending: 0.09 -> rSSTBetas)...")
     patch_sst()
 
-    print("\n[5/5] Patching turbUtils.F90 (eddy viscosity: 0.09 -> rSSTBetas)...")
+    print("\n[4/4] Patching turbUtils.F90 (eddy viscosity: 0.09 -> rSSTBetas)...")
     patch_turbutils()
 
     print("\n" + "=" * 70)
@@ -559,29 +470,36 @@ def main():
     print()
     print("Next steps:")
     print("  1. Rebuild ADflow:")
-    print("     cd /home/mdolabuser/repos/adflow")
+    print("     cd /path/to/adflow")
     print("     make clean && make")
     print("     pip install -e .")
     print()
-    print("Python API after rebuild:")
+    print("  2. Copy adflow_turb_ctypes.py to your working directory")
     print()
-    print("  pt = solver.adflow.paramturb")
+    print("Python API (via ctypes -- recommended):")
+    print()
+    print("  from adflow_turb_ctypes import (")
+    print("      set_sa_constants, set_sa_defaults, get_sa_constants,")
+    print("      set_sst_constants, set_sst_defaults, get_sst_constants,")
+    print("  )")
     print()
     print("  # --- SA model (9 calibration params + auto cw1) ---")
-    print("  pt.setsaconstants(")
+    print("  set_sa_constants(")
     print("      cb1=0.1355, cb2=0.622, sigma=2./3.,")
     print("      kappa=0.41, cv1=7.1, cw2=0.3, cw3=2.0,")
     print("      ct3=1.2, ct4=0.5)")
     print()
     print("  # --- SST model (9 independent params) ---")
-    print("  pt.setsstconstants(")
+    print("  set_sst_constants(")
     print("      sstk=0.41, a1=0.31, betas=0.09,")
     print("      sigk1=0.85, sigw1=0.5, beta1=0.075,")
     print("      sigk2=1.0, sigw2=0.856, beta2=0.0828)")
     print()
-    print("  # --- Or set individually ---")
-    print("  pt.rsacw2 = 0.055       # SA")
-    print("  pt.rsstbeta1 = 0.06     # SST")
+    print("WARNING: Do NOT use the f2py module variable interface")
+    print("  (pt = solver.adflow.paramturb; pt.rsacb1 = ...) for coefficient")
+    print("  modification.  f2py has a memory duplication bug that makes")
+    print("  modifications appear to succeed while having zero effect on")
+    print("  the CFD computation.  Use the ctypes API above instead.")
 
 
 if __name__ == "__main__":
