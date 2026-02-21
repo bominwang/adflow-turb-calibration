@@ -6,8 +6,9 @@
 # Usage:
 #   1. Clone this repo to your HPC (or transfer via scp)
 #   2. Ensure GCC gfortran + OpenMPI are available (module load)
-#   3. Ensure PETSc and CGNS are compiled (see README)
-#   4. Edit the paths below, then run:
+#   3. Build dependencies (if not already installed):
+#      bash hpc/build_deps.sh
+#   4. Set PETSC_DIR and CGNS_HOME, then run:
 #      bash hpc/deploy.sh
 #
 # ==============================================================================
@@ -25,11 +26,21 @@ export MPI_FORT="${MPI_FORT:-mpifort}"
 export MPI_CC="${MPI_CC:-mpicc}"
 
 # PETSc installation directory (must contain lib/petsc/conf/variables)
-export PETSC_DIR="${PETSC_DIR:?ERROR: Set PETSC_DIR to your PETSc installation}"
+# Auto-detect from build_deps.sh output if not set
+if [ -z "$PETSC_DIR" ] && [ -f "$ADFLOW_ROOT/deps/install/petsc/lib/petsc/conf/variables" ]; then
+    export PETSC_DIR="$ADFLOW_ROOT/deps/install/petsc"
+    echo "  Auto-detected PETSC_DIR from deps/install/"
+fi
+export PETSC_DIR="${PETSC_DIR:?ERROR: Set PETSC_DIR or run 'bash hpc/build_deps.sh' first}"
 export PETSC_ARCH=""
 
 # CGNS installation directory (must contain include/cgnslib.h and lib/libcgns.a)
-export CGNS_HOME="${CGNS_HOME:?ERROR: Set CGNS_HOME to your CGNS installation}"
+# Auto-detect from build_deps.sh output if not set
+if [ -z "$CGNS_HOME" ] && [ -f "$ADFLOW_ROOT/deps/install/cgns/include/cgnslib.h" ]; then
+    export CGNS_HOME="$ADFLOW_ROOT/deps/install/cgns"
+    echo "  Auto-detected CGNS_HOME from deps/install/"
+fi
+export CGNS_HOME="${CGNS_HOME:?ERROR: Set CGNS_HOME or run 'bash hpc/build_deps.sh' first}"
 
 # Python (must have numpy, mpi4py installed)
 export PYTHON="${PYTHON:-python3}"
