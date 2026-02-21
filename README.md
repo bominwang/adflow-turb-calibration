@@ -181,6 +181,24 @@ print('SA read/write/reset: OK')
 - CGNS 4.x （需编译 Fortran 支持）
 - Python 3 + numpy + mpi4py
 
+#### 离线一键安装（推荐）
+
+本仓库 `deps/` 目录包含 PETSc 3.15.5、CGNS 4.2.0、SuperLU_DIST 6.4.0 的源码包，**无需联网**即可编译全部依赖：
+
+```bash
+# 1. 将仓库传输到 HPC（scp 或 U 盘）
+scp -r adflow-turb-calibration user@hpc:/path/to/
+
+# 2. 在 HPC 上编译依赖（PETSc + CGNS）
+cd /path/to/adflow-turb-calibration
+bash hpc/build_deps.sh
+
+# 3. 一键部署 ADflow（自动检测 deps/install/ 中的依赖）
+bash hpc/deploy.sh
+```
+
+`build_deps.sh` 会将 PETSc 和 CGNS 安装到 `deps/install/` 下，`deploy.sh` 会自动检测并使用。
+
 #### 手动步骤
 
 ```bash
